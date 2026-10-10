@@ -85,7 +85,7 @@ It lists every lake with a survey (87 county queries), fetches each lake's surve
 - **Biggest fish** — share of netted fish at or above 20″ (walleye), 30″ (pike), 11″ (crappie) across the two most recent surveys with length data; at least 40 / 25 / 40 fish measured; lakes over 50 acres.
 - **Most fish** — catch per net in the most recent survey using standard gill nets (walleye, pike) or standard trap nets (crappie); at least 2 nets; lakes over 50 acres.
 
-Per-lake results are cached in `tools/cache/metrics.jsonl`, so a re-run only fetches lakes it has not seen (delete that file to force a full refresh).
+A normal run refetches every lake so new surveys are included. If a run gets interrupted, `--resume` continues it; `--quick` only re-ranks the previous run's cached metrics without fetching.
 
 ## Project layout
 

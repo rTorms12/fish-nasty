@@ -2,11 +2,12 @@
 """Build data/rankings.json — the Top 20 lakes for big fish and lots of fish
 (walleye, northern pike, crappie) from Minnesota DNR LakeFinder survey data.
 
-Run:  python3 tools/build_rankings.py          (full build, ~5-10 minutes)
-      python3 tools/build_rankings.py --quick  (reuse cached per-lake metrics, just re-rank)
+Run:  python3 tools/build_rankings.py           (full refresh, about 3-5 minutes)
+      python3 tools/build_rankings.py --resume  (continue an interrupted run)
+      python3 tools/build_rankings.py --quick   (no fetching: re-rank from the last run's cache)
 
-The raw survey JSON is not kept; per-lake metrics are cached in tools/cache/metrics.jsonl so a
-re-run only fetches lakes whose newest survey date changed (or that were not fetched before).
+The raw survey JSON is not kept; per-lake metrics are written to tools/cache/metrics.jsonl while the
+run progresses. A normal run starts from scratch so new DNR surveys are picked up.
 """
 import json, os, sys, time, urllib.request, urllib.parse, threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -21,6 +22,7 @@ DETAIL = 'https://maps.dnr.state.mn.us/cgi-bin/lakefinder/detail.cgi?type=lake_s
 WORKERS = 6
 MIN_YEAR = date.today().year - 12          # ignore surveys older than this
 QUICK = '--quick' in sys.argv
+RESUME = '--resume' in sys.argv or QUICK
 
 SPECIES = {
     'WAE': {'name': 'Walleye',       'codes': ['WAE'],                      'big': 20, 'trophy': 25, 'minN': 40, 'gear': ['Standard gill nets', 'Standard gill net sets']},
@@ -137,10 +139,10 @@ def main():
     print('Listing lakes with DNR surveys by county…', flush=True)
     lakes = lake_list()
     print(f'{len(lakes)} lakes with surveys ({time.time() - t0:.0f}s)', flush=True)
+    if not RESUME and os.path.exists(CACHE):
+        os.remove(CACHE)  # fresh run: refetch everything so new surveys are included
     cache = load_cache()
-    todo = list(lakes.values()) if not QUICK else [l for l in lakes.values() if l['id'] not in cache]
-    if not QUICK:
-        todo = [l for l in lakes.values() if l['id'] not in cache]  # resume: skip lakes already reduced
+    todo = [] if QUICK else [l for l in lakes.values() if l['id'] not in cache]
     print(f'{len(todo)} lakes to fetch, {len(cache)} cached', flush=True)
     lock = threading.Lock(); done = 0; failed = []
     with open(CACHE, 'a') as cf, ThreadPoolExecutor(max_workers=WORKERS) as ex:
