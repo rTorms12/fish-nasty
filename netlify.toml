@@ -1,0 +1,27 @@
+# Netlify configuration for Fish Nasty — a static site, no build step.
+[build]
+  publish = "."
+  command = ""
+
+# The service worker and the app shell must never be cached by the CDN/browser
+# for long, so updates show up on the next reload. Everything else can cache normally.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache, must-revalidate"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache, must-revalidate"
+
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Content-Type = "application/manifest+json"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

@@ -11,3 +11,6 @@ tools/build.log
 # Python
 __pycache__/
 *.pyc
+
+# Netlify Drop bundle built by: zip -r fish-nasty-site.zip ...
+*.zip
