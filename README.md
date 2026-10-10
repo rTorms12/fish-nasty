@@ -12,6 +12,8 @@ A browser-based, add-to-home-screen fishing app for Minnesota lakes. Think onX F
 - **Pins (waypoints)** — drop a pin at your GPS position, at a spot you tap, from the depth popup, or by long-pressing (right-click on a computer) anywhere on the map. Pins pick up the lake name and depth automatically, can be named, colored and annotated, and have one-tap directions. Saved on the device.
 - **Favorite lakes, recent lakes, search** by name or DOW number, "lakes with depth maps near me", deep links (`#lake/48000200`).
 
+**Live:** https://fishnasty.netlify.app (deploys automatically from the `main` branch of https://github.com/rTorms12/fish-nasty). Open it on your phone and use Share → Add to Home Screen.
+
 Everything runs in the browser. There is no build step, no server-side code, and no API keys.
 
 ## Run it
