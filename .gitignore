@@ -1,0 +1,13 @@
+# macOS
+.DS_Store
+
+# Claude Code local session config
+.claude/
+
+# Build-script scratch: per-lake metrics cache and log (data/rankings.json is the committed output)
+tools/cache/
+tools/build.log
+
+# Python
+__pycache__/
+*.pyc

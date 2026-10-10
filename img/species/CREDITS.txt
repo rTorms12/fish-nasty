@@ -1,0 +1,5 @@
+Species artwork (public domain, U.S. government works):
+- walleye.jpg        Walleye (Sander vitreus), painting by Timothy Knepp, U.S. Fish & Wildlife Service National Image Library. Via Wikimedia Commons "Walleye painting.jpg".
+- northern-pike.jpg  Northern pike (Esox lucius), drawing by Timothy Knepp, U.S. Fish & Wildlife Service National Image Library. Via Wikimedia Commons "Esox lucius1.jpg".
+- crappie.jpg        Black crappie (Pomoxis nigromaculatus), NOAA Great Lakes Environmental Research Laboratory. Via Wikimedia Commons "Pomoxis nigromaculatus.jpg".
+Resized for the app; no other changes.

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#143c5c"/><stop offset="1" stop-color="#071624"/></linearGradient>
+    <linearGradient id="fish" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9fe8ff"/><stop offset="1" stop-color="#3fb2ea"/></linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <!-- depth contour rings -->
+  <g fill="none" stroke="#3a7fb0" stroke-width="7" opacity=".55">
+    <ellipse cx="256" cy="270" rx="212" ry="150"/>
+    <ellipse cx="256" cy="272" rx="170" ry="112"/>
+    <ellipse cx="256" cy="274" rx="126" ry="76"/>
+  </g>
+  <!-- fish -->
+  <g transform="translate(256 270)">
+    <path d="M-150 0 C-100 -78 -20 -92 60 -56 L118 -102 L104 0 L118 102 L60 56 C-20 92 -100 78 -150 0 Z" fill="url(#fish)"/>
+    <path d="M-40 -58 C-10 -80 40 -84 60 -56 L30 -20 Z" fill="#dff6ff" opacity=".55"/>
+    <circle cx="-96" cy="-14" r="13" fill="#0b1a26"/>
+    <circle cx="-100" cy="-18" r="4" fill="#ffffff"/>
+    <path d="M-72 22 C-56 34 -34 36 -16 24" stroke="#0b1a26" stroke-width="6" fill="none" stroke-linecap="round"/>
+  </g>
+</svg>

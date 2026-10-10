@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>Fish Nasty</title>
+<meta name="description" content="Minnesota lake maps with DNR depth contours, fish species, fisheries surveys, stocking records and a bite forecast.">
+<meta name="theme-color" content="#0b1a26">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Fish Nasty">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" crossorigin="">
+<link rel="stylesheet" href="css/app.css?v=1.3.2">
+</head>
+<body>
+<div id="app">
+  <div id="map" aria-label="Map of Minnesota lakes"></div>
+
+  <header class="topbar">
+    <button class="icon-btn" id="btn-home" title="Home" aria-label="Home"><svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></button>
+    <div class="search">
+      <svg class="s-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+      <input id="search" type="search" placeholder="Search Minnesota lakes or DOW #" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" enterkeyhint="search">
+      <button id="search-clear" class="hidden" aria-label="Clear search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <button class="icon-btn" id="btn-top" title="Top 20 lakes" aria-label="Top 20 lakes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4a1 1 0 0 0-1 1 4 4 0 0 0 4 4M17 6h3a1 1 0 0 1 1 1 4 4 0 0 1-4 4"/></svg></button>
+  </header>
+  <div id="search-results" class="search-results hidden"></div>
+  <div id="zoom-hint">Zoom in to a lake to see depth contours · long-press to drop a pin</div>
+
+  <section id="sheet" class="sheet half" aria-label="Lake details">
+    <div class="sheet-handle" id="sheet-handle"><span></span></div>
+    <div class="sheet-body" id="sheet-body"></div>
+  </section>
+
+  <div class="fabs">
+    <button id="fab-zoomin" title="Zoom in" aria-label="Zoom in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button id="fab-zoomout" title="Zoom out" aria-label="Zoom out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/></svg></button>
+    <button id="fab-pin" title="Drop a pin" aria-label="Drop a pin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 22s7-7.5 7-13a7 7 0 1 0-14 0c0 5.5 7 13 7 13z"/><circle cx="12" cy="9" r="2.5"/></svg></button>
+    <button id="fab-locate" title="My location" aria-label="My location"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></svg></button>
+    <button id="fab-layers" title="Map layers" aria-label="Map layers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/><path d="M3 17l9 5 9-5"/></svg></button>
+    <button id="fab-legend" title="Depth legend" aria-label="Depth legend"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg></button>
+  </div>
+  <div id="layers-panel" class="panel hidden"></div>
+  <div id="pin-menu" class="panel pin-menu hidden"></div>
+  <div id="place-hint" class="hidden"><span>Tap the map where you want the pin</span><button data-action="pin-cancel">Cancel</button></div>
+  <div id="legend" class="legend hidden"></div>
+  <div id="toast" class="toast hidden"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin=""></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.9.0/suncalc.min.js" crossorigin=""></script>
+<script src="js/config.js?v=1.3.2"></script>
+<script src="js/species.js?v=1.3.2"></script>
+<script src="js/dnr.js?v=1.3.2"></script>
+<script src="js/weather.js?v=1.3.2"></script>
+<script src="js/solunar.js?v=1.3.2"></script>
+<script src="js/forecast.js?v=1.3.2"></script>
+<script src="js/map.js?v=1.3.2"></script>
+<script src="js/ui.js?v=1.3.2"></script>
+<script src="js/app.js?v=1.3.2"></script>
+</body>
+</html>
