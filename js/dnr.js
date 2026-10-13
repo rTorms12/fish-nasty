@@ -293,5 +293,18 @@ FN.dnr = (() => {
     return res;
   }
 
-  return { search, byId, resolve, detail, stocking, accessSites, nearby, identify };
+  /* ---------- Depth-map vintage: when the DNR did the fieldwork behind the contours ---------- */
+  async function bathyMeta(id) {
+    const prefix = FN.util.dowPrefix(id);
+    const url = `${C.gis.bathy}/2/query?where=${encodeURIComponent(`dowlknum LIKE '${prefix}%'`)}&outFields=dowlknum,lake_name,fldw_end,data_src,mapid&returnGeometry=false&f=json`;
+    const d = await getJSON(url);
+    const rows = ((d && d.features) || []).map(f => f.attributes);
+    if (!rows.length) return null;
+    const parseYear = v => { const m = String(v || '').match(/(19|20)\d{2}/); return m ? Number(m[0]) : null; };
+    const years = rows.map(r => parseYear(r.fldw_end)).filter(Boolean);
+    const src = { 'ORIG MAP': 'digitized from the original DNR survey map', 'TOPO MAP/DRG': 'digitized from a topographic map', 'GPS': 'GPS/sonar survey', 'GET SOURCE': 'source not recorded' };
+    return { year: years.length ? Math.max(...years) : null, years, source: src[rows[0].data_src] || rows[0].data_src || 'unknown', mapIds: rows.map(r => r.mapid).filter(Boolean), basins: rows.length };
+  }
+
+  return { search, byId, resolve, detail, stocking, accessSites, nearby, identify, bathyMeta };
 })();

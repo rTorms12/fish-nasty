@@ -116,7 +116,7 @@
     const my = ++reqId;
     S.view = 'lake'; S.tab = S.tab === 'overview' || !S.lake || S.lake.id !== id ? 'overview' : S.tab;
     S.loading = { lake: true, detail: true, stocking: true, access: true, weather: true }; S.errors = {};
-    S.detail = S.stocking = S.access = S.weather = S.bite = null; S.dayIdx = 0; S.hourIdx = null; S.surveyIdx = 0;
+    S.detail = S.stocking = S.access = S.weather = S.bite = null; S.bathy = null; S.dayIdx = 0; S.hourIdx = null; S.surveyIdx = 0;
     let lake = (S.lake && S.lake.id === id) ? S.lake : null;
     if (!lake) {
       body.innerHTML = FN.ui.spinner('Loading lake…');
@@ -139,6 +139,7 @@
     (lake.resources.fishStocking ? FN.dnr.stocking(lake.id) : Promise.resolve({ rows: [], notes: {} }))
       .then(st => { if (my !== reqId) return; S.stocking = st; S.loading.stocking = false; rerender(); })
       .catch(e => { if (my !== reqId) return; S.errors.stocking = 'Could not load stocking data: ' + e.message; S.loading.stocking = false; rerender(); });
+    FN.dnr.bathyMeta(lake.id).then(b => { if (my !== reqId) return; S.bathy = b || { none: true }; rerender(); }).catch(() => {});
     FN.dnr.accessSites(lake).then(a => { if (my !== reqId) return; S.access = a; S.loading.access = false; FN.map.showAccess(a); rerender(); })
       .catch(() => { if (my !== reqId) return; S.access = []; S.loading.access = false; rerender(); });
     if (lake.lat != null) {

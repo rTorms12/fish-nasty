@@ -143,6 +143,12 @@ FN.ui = (() => {
     const parts = [];
     parts.push(`<div class="stats">${stat('acres', U.num(acres))}${stat('max depth', U.num(maxD), ' ft')}${stat('mean depth', meanD ? U.num(meanD, 1) : '—', meanD ? ' ft' : '')}${stat('littoral (<15 ft)', litt ? Math.round(100 * litt / Math.max(1, acres)) : '—', litt ? '%' : '')}${stat('shoreline', shore ? U.num(shore, 1) : '—', shore ? ' mi' : '')}${stat('clarity', clarity ? U.num(clarity, 1) : '—', clarity ? ' ft' : '')}</div>`);
 
+    if (S.bathy) {
+      const b = S.bathy;
+      parts.push(b.none
+        ? `<p class="muted small">🗺️ No DNR depth map exists for this lake, so the map shows the outline only.</p>`
+        : `<p class="muted small">🗺️ Depth map: DNR fieldwork ${b.year ? b.year : 'date unknown'}${b.years.length > 1 ? ` (${Math.min(...b.years)}–${Math.max(...b.years)} across ${b.basins} basins)` : ''}, ${esc(b.source)}. Contours are 5-ft steps (10 ft on some big lakes); depths between lines are interpolated, so treat tap-to-read depths as ±3 ft.</p>`);
+    }
     if (S.bite && S.bite.days[0]) {
       const d = S.bite.days[0];
       parts.push(`<button class="card link" data-action="tab" data-tab="forecast"><div class="row">${scoreRing(d.score, 56)}<div class="grow"><div class="eyebrow">Today's bite · ${esc(S.bite.profile.name)}</div><div class="big">${ratingBadge(d.rating)}</div><div class="muted small">${d.windows.length ? 'Best: ' + d.windows.map(windowText).join(', ') : 'No standout window'} · ${d.info.phaseIcon} ${esc(d.info.phaseName)}</div></div><div class="chev">›</div></div></button>`);
