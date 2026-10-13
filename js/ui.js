@@ -71,7 +71,15 @@ FN.ui = (() => {
         <div class="actions"><button class="btn" data-action="locate-nearby">${ICON.locate} Use my location</button></div></div>`);
     }
 
-    parts.push(`<button class="card link top-link" data-action="top"><div class="row"><div class="trophy">🏆</div><div class="grow"><div class="big">Top 20 lakes</div><div class="muted small">Biggest and most walleye, pike and crappie, ranked from every DNR survey in the state</div></div><div class="chev">›</div></div></button>`);
+    parts.push(`<button class="card link top-link" data-action="top"><div class="row"><div class="trophy">🏆</div><div class="grow"><div class="big">Lake finder · Top 20</div><div class="muted small">Biggest and most walleye, pike and crappie — statewide, near you, or by county — from every DNR survey</div></div><div class="chev">›</div></div></button>`);
+    if (S.user) {
+      const pending = (S.buddies && S.buddies.friendships || []).filter(f => f.status === 'pending' && f.addressee_id === S.user.id).length;
+      parts.push(`<div class="card account"><div class="row"><div class="avatar">${esc(((S.profile && S.profile.display_name) || S.user.email || '?').slice(0, 1).toUpperCase())}</div><div class="grow"><div class="big">${esc((S.profile && S.profile.display_name) || S.user.email)}</div><div class="muted small">${S.syncing ? 'Syncing…' : S.lastSync ? 'Synced ' + U.fmtTime(S.lastSync) : 'Signed in'} · pins, favorites and catches are backed up</div></div><button class="icon-btn mini" data-action="account" title="Account">${ICON.edit}</button></div>
+        <div class="actions"><button class="btn" data-action="catches">🎣 Catch log${S.catches.length ? ` <em class="count">${S.catches.length}</em>` : ''}</button><button class="btn ghost" data-action="buddies">👥 Buddies${pending ? ` <em class="count hot">${pending}</em>` : ''}</button><button class="btn ghost" data-action="catch-new">+ Log a catch</button></div></div>`);
+    } else if (FN.cloud && FN.cloud.available()) {
+      if (S.catches && S.catches.length) parts.push(`<button class="card link" data-action="catches"><div class="row"><div class="trophy">🎣</div><div class="grow"><div class="big">Catch log <span class="muted">· ${S.catches.length}</span></div><div class="muted small">Kept on this device. Sign in to back it up and sync.</div></div><div class="chev">›</div></div></button>`);
+      parts.push(`<button class="card link" data-action="account"><div class="row"><div class="avatar">☁️</div><div class="grow"><div class="big">Sign in or create an account</div><div class="muted small">Back up and sync your pins and favorites, keep a catch log with photos, and share spots with buddies.</div></div><div class="chev">›</div></div></button>`);
+    }
     if (S.nearby && S.nearby.length) {
       parts.push(`<h2>Lakes with depth maps near you</h2><div class="list">${S.nearby.slice(0, 12).map(l => lakeRow({ id: l.id, name: l.name, county: l.county, acres: l.acres })).join('')}</div>`);
     }
@@ -152,6 +160,10 @@ FN.ui = (() => {
 
     const lakePins = (S.pins || []).filter(p => pinOnLake(p, L));
     if (lakePins.length) parts.push(`<h2>My pins on this lake</h2><div class="list">${lakePins.map(pinRow).join('')}</div>`);
+    const lakeCatches = (S.catches || []).filter(c => c.lakeId && U.dowPrefix(c.lakeId) === U.dowPrefix(L.id));
+    parts.push(`<h2>Catch log</h2><div class="actions"><button class="btn small" data-action="catch-new">+ Log a catch here</button>${S.user ? `<button class="btn small ghost" data-action="report-new">📝 Lake report to buddies</button>` : ''}</div>`);
+    if (lakeCatches.length) parts.push(`<div class="list">${lakeCatches.slice(0, 5).map(c => FN.ui.catchRow(c)).join('')}</div><div class="actions"><button class="btn small ghost" data-action="catches">Open catch log (${S.catches.length})</button></div>`);
+    else if (!S.user) parts.push(`<p class="muted small">Catches are kept on this device until you sign in; then they're backed up and synced.</p>`);
 
     if (L.regs && L.regs.length) {
       parts.push(`<h2>Special regulations</h2><div class="regs">${L.regs.map(r => `${r.location ? `<div class="muted small">${esc(r.location)}</div>` : ''}<ul>${(r.regs || []).map(x => `<li><strong>${esc((x.species || []).join(', '))}:</strong> ${esc(x.text)}</li>`).join('')}</ul>`).join('')}<a class="ext" href="${C.dnr.regs}" target="_blank" rel="noopener">Statewide regulations ${ICON.ext}</a></div>`);
@@ -348,6 +360,17 @@ FN.ui = (() => {
       if (d.drivers.pos.length || d.drivers.neg.length) parts.push(`<div class="drivers">${d.drivers.pos.map(x => `<span class="chip pos">+ ${esc(x.label)}</span>`).join('')}${d.drivers.neg.map(x => `<span class="chip neg">− ${esc(x.label)}</span>`).join('')}</div>`);
     }
 
+    const ins = FN.forecast.insights(S.catches, B.species);
+    if (ins) {
+      const top = (arr, fmt) => arr.length ? fmt(arr[0]) : '—';
+      parts.push(`<div class="card insights"><div class="eyebrow">Your ${esc(B.profile.name.toLowerCase())} history · ${ins.n} catch${ins.n === 1 ? '' : 'es'}</div>
+        <div class="irow"><span>Best time</span><b>${top(ins.byPeriod, ([k, v]) => `${k} (${v})`)}</b></div>
+        <div class="irow"><span>Best barometer</span><b>${top(ins.byPressure, ([k, v]) => `${k} (${v})`)}</b></div>
+        <div class="irow"><span>Best moon</span><b>${top(ins.byMoon, ([k, v]) => `${ins.moonLabel(k)} (${v})`)}</b></div>
+        <div class="irow"><span>Best month</span><b>${top(ins.byMonth, ([k, v]) => `${k} (${v})`)}</b></div>
+        ${ins.biggest ? `<div class="irow"><span>Biggest</span><b>${ins.biggest.length}″${ins.biggest.lakeName ? ' · ' + esc(ins.biggest.lakeName) : ''}</b></div>` : ''}
+        <div class="muted small">${ins.n >= 5 ? 'The hourly scores above include a personal adjustment from this history.' : 'Log 5+ catches of this species and the forecast starts adjusting to your results.'}</div></div>`);
+    }
     const prof = B.profile;
     if (prof.depth) {
       const season = FN.seasonOf(d ? d.date : new Date());
@@ -403,13 +426,14 @@ FN.ui = (() => {
   function pinPopup(p) {
     return `<div class="pin-popup">
       <div class="pp-name"><i class="dot" style="background:${esc(p.color || '#ffb454')}"></i>${esc(p.name)}</div>
-      <div class="pp-meta">${p.lakeName ? esc(p.lakeName) + ' · ' : ''}${p.depth != null ? p.depth + ' ft deep · ' : ''}${new Date(p.created).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}${p.source === 'gps' ? ' · GPS' : ''}</div>
+      <div class="pp-meta">${p.lakeName ? esc(p.lakeName) + ' · ' : ''}${p.depth != null ? p.depth + ' ft deep · ' : ''}${new Date(p.created).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}${p.source === 'gps' ? ' · GPS' : ''}${p.shared ? ' · shared with buddies' : ''}</div>
       ${p.notes ? `<div class="pp-notes">${esc(p.notes)}</div>` : ''}
       <div class="pp-coords">${coords(p)}</div>
       <div class="pp-actions">
         <button class="btn small" data-action="pin-edit" data-id="${esc(p.id)}">${ICON.edit} Edit</button>
         <a class="btn small ghost" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}" target="_blank" rel="noopener">Directions ${ICON.ext}</a>
         <button class="btn small ghost" data-action="pin-copy" data-id="${esc(p.id)}">Copy coords</button>
+        <button class="btn small ghost" data-action="catch-new" data-pin-id="${esc(p.id)}">🎣 Log catch</button>
         ${p.lakeId ? `<button class="btn small ghost" data-action="open-lake" data-id="${esc(p.lakeId)}">Lake info</button>` : ''}
         <button class="btn small danger" data-action="pin-delete" data-id="${esc(p.id)}">Delete</button>
       </div></div>`;
@@ -422,6 +446,7 @@ FN.ui = (() => {
     <div class="field"><label>Name</label><input type="text" id="pin-name" value="${esc(p.name)}" maxlength="60" autocomplete="off"></div>
     <div class="field"><label>Notes</label><textarea id="pin-notes" rows="4" placeholder="What you caught, bait, structure, time of day…">${esc(p.notes || '')}</textarea></div>
     <div class="field"><label>Color</label><div class="colors">${C.pinColors.map(c => `<button class="${(p.color || '#ffb454') === c ? 'on' : ''}" style="background:${c}" data-action="pin-color" data-c="${c}" aria-label="color"></button>`).join('')}</div></div>
+    <label class="switch"><input type="checkbox" id="pin-shared" ${p.shared ? 'checked' : ''}><span>Share this pin with my buddies${FN.app && FN.app.state.user ? '' : ' <em class="muted">(sign in to share)</em>'}</span></label>
     <div class="actions"><button class="btn" data-action="pin-save" data-id="${esc(p.id)}">Save</button><button class="btn ghost" data-action="pin-open" data-id="${esc(p.id)}">Show on map</button><button class="btn ghost danger" data-action="pin-delete" data-id="${esc(p.id)}">Delete</button></div>
     <p class="muted small">Pins are saved on this device. Dropped ${new Date(p.created).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}${p.accuracy ? ` · GPS accuracy ±${Math.round(p.accuracy)} m` : ''}.</p>`;
   }
@@ -460,5 +485,5 @@ FN.ui = (() => {
     return `<div class="depth-popup">${html}</div>`;
   };
 
-  return { ICON, home, lake, top, searchResults, layersPanel, legend, depthPopup, spinner, ratingBadge, scoreRing, pinPopup, pinEditor, pinMenu };
+  return { ICON, home, lake, top, searchResults, layersPanel, legend, depthPopup, spinner, errorBox, ratingBadge, scoreRing, pinPopup, pinEditor, pinMenu, speciesIcon, gearShort, lakeRow, pinRow, windowText };
 })();

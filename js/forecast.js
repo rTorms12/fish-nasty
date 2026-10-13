@@ -20,8 +20,53 @@ FN.forecast = (() => {
     warming: 'Warming trend',
     heat: 'Heat',
     frigid: 'Frigid air',
-    season: 'Seasonal pattern'
+    season: 'Seasonal pattern',
+    personal: 'Your catch history'
   };
+
+  const PERIODS = [['dawn', 5, 8], ['morning', 8, 11], ['midday', 11, 15], ['afternoon', 15, 18], ['evening', 18, 21], ['night', 21, 29]];
+  const periodOf = h => { const hh = h < 5 ? h + 24 : h; return (PERIODS.find(([, a, b]) => hh >= a && hh < b) || PERIODS[5])[0]; };
+  const MOONS = { new: 'new moon', full: 'full moon', quarter: 'quarter moon', other: 'in between' };
+  const moonBucket = phase => { if (phase == null) return null; const d = Math.min(phase, 1 - phase); if (d <= 0.08) return 'new'; if (Math.abs(phase - 0.5) <= 0.08) return 'full'; if (Math.abs(phase - 0.25) <= 0.08 || Math.abs(phase - 0.75) <= 0.08) return 'quarter'; return 'other'; };
+
+  // What the angler's own catch log says: counts by period, pressure trend, moon, month, lake; biggest fish
+  function insights(catches, speciesCode) {
+    const list = (catches || []).filter(c => !speciesCode || speciesCode === 'ALL' || c.species === speciesCode || (FN.profileFor(c.species) || {}).name === (FN.profileFor(speciesCode) || {}).name);
+    const n = list.length;
+    if (!n) return null;
+    const count = (arr, key) => { const m = new Map(); for (const x of arr) { const k = key(x); if (k == null) continue; m.set(k, (m.get(k) || 0) + 1); } return [...m.entries()].sort((a, b) => b[1] - a[1]); };
+    const hourOf = c => { const h = c.conditions && c.conditions.hour != null ? c.conditions.hour : new Date(c.caughtAt).getHours(); return h; };
+    const byPeriod = count(list, c => periodOf(hourOf(c)));
+    const byPressure = count(list, c => c.conditions && c.conditions.pressureTrend);
+    const byMoon = count(list, c => moonBucket(c.conditions && c.conditions.moonPhase));
+    const byMonth = count(list, c => new Date(c.caughtAt).toLocaleDateString('en-US', { month: 'long' }));
+    const byLake = count(list, c => c.lakeName);
+    const withLen = list.filter(c => c.length);
+    const biggest = withLen.length ? withLen.reduce((a, b) => (b.length > a.length ? b : a)) : null;
+    const avgLen = withLen.length ? withLen.reduce((a, b) => a + b.length, 0) / withLen.length : null;
+    const avgScore = list.filter(c => c.conditions && c.conditions.biteScore != null).map(c => c.conditions.biteScore);
+    return { n, biggest, avgLen, byPeriod, byPressure, byMoon, byMonth, byLake, moonLabel: k => MOONS[k] || k, avgBite: avgScore.length ? Math.round(avgScore.reduce((a, b) => a + b, 0) / avgScore.length) : null };
+  }
+
+  // Hour-by-hour adjustment (max about ±10) learned from the angler's own catches for this species
+  function personalFactor(catches, speciesCode) {
+    const ins = insights(catches, speciesCode);
+    if (!ins || ins.n < 5) return null;
+    const periodShare = new Map(ins.byPeriod.map(([k, v]) => [k, v / ins.n]));
+    const pressShare = new Map(ins.byPressure.map(([k, v]) => [k, v / ins.n]));
+    const pressN = ins.byPressure.reduce((a, [, v]) => a + v, 0);
+    return hourRec => {
+      const per = periodOf(hourRec.t.getHours());
+      let v = U.clamp(((periodShare.get(per) || 0) - 1 / 6) * 30, -6, 8);
+      let detail = `${Math.round((periodShare.get(per) || 0) * 100)}% of your ${ins.n} ${FN.profileFor(speciesCode) ? FN.profileFor(speciesCode).name.toLowerCase() : ''} catches came in the ${per}`;
+      const trend = hourRec.details.pressure ? hourRec.details.pressure.split(' ')[0] : null; // falling / steady / rising
+      if (pressN >= 5 && trend) {
+        const key = trend === 'falling' ? 'falling' : trend === 'rising' ? 'rising' : 'steady';
+        v += U.clamp(((pressShare.get(key) || 0) - 1 / 3) * 15, -4, 5);
+      }
+      return { value: Math.round(v * 10) / 10, detail };
+    };
+  }
 
   function rating(score) {
     if (score >= 75) return { word: 'Excellent', cls: 'r4' };
@@ -30,8 +75,9 @@ FN.forecast = (() => {
     return { word: 'Poor', cls: 'r1' };
   }
 
-  function compute(weather, lat, lon, speciesCode) {
+  function compute(weather, lat, lon, speciesCode, catches) {
     const profile = FN.profileFor(speciesCode) || FN.PROFILES.ALL;
+    const personal = catches && catches.length ? personalFactor(catches, speciesCode) : null;
     const W = profile.weights || {};
     const w = k => (W[k] == null ? 1 : W[k]);
     const hours = weather.hours;
@@ -120,6 +166,11 @@ FN.forecast = (() => {
       const sea = profile.season ? profile.season[t.getMonth()] : 0;
       if (sea) f.season = sea;
 
+      if (personal) {
+        const rec = { t, details: d };
+        const pf = personal(rec);
+        if (pf && Math.abs(pf.value) >= 0.5) { f.personal = pf.value; d.personal = pf.detail; }
+      }
       const sum = Object.values(f).reduce((a, b) => a + b, 0);
       const score = U.clamp(Math.round(50 + sum), 0, 100);
       out.push({ t, score, factors: f, details: d, weather: h, info, isNight, rating: rating(score) });
@@ -182,5 +233,5 @@ FN.forecast = (() => {
       .sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
   }
 
-  return { compute, rating, explain, LABELS };
+  return { compute, rating, explain, insights, personalFactor, periodOf, LABELS };
 })();

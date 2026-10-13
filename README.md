@@ -11,6 +11,10 @@ A browser-based, add-to-home-screen fishing app for Minnesota lakes. Think onX F
 - **Bite forecast** — a 7-day, hour-by-hour bite score that blends solunar periods (moon overhead/underfoot, moonrise/set), moon phase, dawn/dusk, barometric trend, wind, cloud cover, precipitation, temperature swings and the season. Pick a species (walleye, pike, muskie, bass, crappie, panfish, perch, lake trout, trout, catfish…) and the weighting changes to match how that fish behaves.
 - **Pins (waypoints)** — drop a pin at your GPS position, at a spot you tap, from the depth popup, or by long-pressing (right-click on a computer) anywhere on the map. Pins pick up the lake name and depth automatically, can be named, colored and annotated, and have one-tap directions. Saved on the device.
 - **Favorite lakes, recent lakes, search** by name or DOW number, "lakes with depth maps near me", deep links (`#lake/48000200`).
+- **Account & sync (Supabase)** — sign in with email + password or an emailed link. Pins, favorites and catches are backed up and synced across your phone and computer. Everything still works signed out; it just stays on that device.
+- **Catch log** — log species, length, weight, bait, notes and a photo from a lake page or any pin. The weather, barometer trend, moon phase, solunar period and bite score at that moment are saved automatically. After 5+ catches of a species the forecast adds a personal adjustment from your own history, and the Forecast tab shows your best times, barometer and moon.
+- **Buddies** — invite by email, accept requests, and share pins, catches (with photos) and lake reports with each other. Shared items show up in the Buddies feed with "Show on map" and "Save to my pins".
+- **Lake finder** — every surveyed lake's walleye, pike and crappie metrics live in the database: rank by biggest or most, statewide, within a radius of you, or by county, with a minimum "longest netted" filter. The DNR data is re-scanned automatically once a month by a scheduled Supabase Edge Function.
 
 **Live:** https://fishnasty.netlify.app (deploys automatically from the `main` branch of https://github.com/rTorms12/fish-nasty). Open it on your phone and use Share → Add to Home Screen.
 
@@ -72,6 +76,24 @@ Each hour starts at 50 and is adjusted by:
 
 Species profiles in `js/species.js` multiply each factor (e.g. walleye care more about low light and chop, muskies about moon events, bass about cold fronts, catfish like night and rain). It is guidance, not a guarantee.
 
+## Supabase backend
+
+Project **Fish Nasty** in the "Ryan's Apps" organization (`kmfyzjasrtpgdjcybqtr`, us-east-2). The browser talks to it with the publishable key in `js/config.js`; every table has row-level security, so users only ever see their own rows plus what buddies chose to share.
+
+| Table | What it holds |
+|---|---|
+| `profiles` | one row per account (display name, email); created by a trigger on sign-up |
+| `pins`, `favorites`, `catches`, `reports` | per-user data; `shared = true` rows are visible to accepted buddies |
+| `friendships` | invites and buddy links (by email; auto-linked when the invitee signs up) |
+| `lakes`, `lake_species_metrics` | all 3,800+ surveyed lakes and their walleye / pike / crappie size and catch-rate metrics (public read) |
+| `refresh_jobs`, `refresh_queue` | progress of the monthly DNR re-scan |
+
+Photos live in the private `catch-photos` storage bucket (`{user id}/{catch id}.jpg`, resized to 1280 px on the phone before upload).
+
+The Edge Function `refresh-lakes` re-scans LakeFinder in batches of 60 lakes; a pg_cron job (`refresh-lakes-tick`, every 2 minutes) keeps it moving while a job is running and starts a new one when the last finished more than 30 days ago. `?action=status` on the function reports progress.
+
+Auth settings to keep correct in the Supabase dashboard (Authentication → URL Configuration): Site URL `https://fishnasty.netlify.app`, redirect URLs `https://fishnasty.netlify.app/**` and `http://localhost:8765/**`. Supabase's built-in mailer is rate-limited (a few emails per hour); add custom SMTP if buddies sign up in bulk.
+
 ## Rebuilding the Top 20 rankings
 
 `data/rankings.json` is generated, not live. To refresh it after the DNR posts new surveys (once a year is plenty):
@@ -106,7 +128,9 @@ js/solunar.js         sun / moon / solunar periods
 js/forecast.js        bite score model
 js/map.js             Leaflet map, DNR depth layers, tap-to-depth
 js/ui.js              rendering
-js/app.js             state, events, loading, bottom sheet
+js/app.js             state, events, loading, bottom sheet, sync
+js/views.js           account, catch log, buddies, lake finder views
+js/cloud.js           Supabase client (auth, sync, catches, buddies, lake metrics)
 icons/                app icons
 ```
 

@@ -1,12 +1,13 @@
 /* Fish Nasty — service worker: offline app shell + cached data */
-const VERSION = 'fn-v1.3.2';
+const VERSION = 'fn-v1.4.0';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/app.css',
-  './js/config.js', './js/species.js', './js/dnr.js', './js/weather.js', './js/solunar.js', './js/forecast.js', './js/map.js', './js/ui.js', './js/app.js',
+  './js/config.js', './js/species.js', './js/dnr.js', './js/weather.js', './js/solunar.js', './js/forecast.js', './js/map.js', './js/ui.js', './js/views.js', './js/cloud.js', './js/app.js',
   './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.9.0/suncalc.min.js'
+  'https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.9.0/suncalc.min.js',
+  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js'
 ];
 const DATA_HOSTS = ['maps.dnr.state.mn.us', 'api.open-meteo.com'];
 const DATA_CACHE = VERSION + '-data';
@@ -30,9 +31,9 @@ self.addEventListener('fetch', e => {
     return;
   }
   // Map tiles & dynamic layers: network only (too large to cache)
-  if (url.hostname.includes('arcgisonline.com') || url.hostname.includes('gisdata.mn.gov') || url.hostname.includes('openstreetmap.org') || url.hostname.includes('cartocdn.com')) return;
+  if (url.hostname.includes('arcgisonline.com') || url.hostname.includes('gisdata.mn.gov') || url.hostname.includes('openstreetmap.org') || url.hostname.includes('cartocdn.com') || url.hostname.endsWith('supabase.co')) return;
   // Libraries from the CDN are versioned URLs: cache first
-  if (url.hostname === 'cdnjs.cloudflare.com') {
+  if (url.hostname === 'cdnjs.cloudflare.com' || url.hostname === 'cdn.jsdelivr.net') {
     e.respondWith(caches.match(req).then(hit => hit || fetch(req).then(res => {
       if (res.ok) caches.open(VERSION).then(c => c.put(req, res.clone()));
       return res;

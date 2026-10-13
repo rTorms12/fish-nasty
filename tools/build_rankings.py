@@ -139,6 +139,8 @@ def main():
     print('Listing lakes with DNR surveys by county…', flush=True)
     lakes = lake_list()
     print(f'{len(lakes)} lakes with surveys ({time.time() - t0:.0f}s)', flush=True)
+    with open(os.path.join(CACHE_DIR, 'lakes.json'), 'w') as f:
+        json.dump(lakes, f, separators=(',', ':'))  # lake list (id, name, county, lat/lon, acres) for seeding the database
     if not RESUME and os.path.exists(CACHE):
         os.remove(CACHE)  # fresh run: refetch everything so new surveys are included
     cache = load_cache()

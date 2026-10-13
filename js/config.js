@@ -3,7 +3,7 @@ window.FN = window.FN || {};
 
 FN.config = {
   appName: 'Fish Nasty',
-  version: '1.3.2',
+  version: '1.4.0',
   tz: 'America/Chicago',
 
   // Minnesota DNR LakeFinder (public JSON/HTML endpoints, CORS enabled)
@@ -23,6 +23,13 @@ FN.config = {
   },
 
   weather: 'https://api.open-meteo.com/v1/forecast',
+
+  // Supabase (sign-in, sync, catch log, buddies, statewide lake metrics). The publishable key is safe in a browser;
+  // every table is protected by row-level security.
+  supabase: {
+    url: 'https://kmfyzjasrtpgdjcybqtr.supabase.co',
+    key: 'sb_publishable_H8YMUAT5TQfWYslYl2cjIw_ELb32Mz0'
+  },
 
   map: {
     center: [46.35, -94.2],
@@ -54,7 +61,10 @@ FN.config = {
     layers: 'fn.layers',
     species: 'fn.species',
     lastLake: 'fn.lastLake',
-    pins: 'fn.pins'
+    pins: 'fn.pins',
+    catches: 'fn.catches',
+    tomb: 'fn.tomb',
+    finder: 'fn.finder'
   },
 
   pinColors: ['#ffb454', '#ff6b6b', '#6cf0bd', '#58d1ff', '#c58bff', '#ffffff']
