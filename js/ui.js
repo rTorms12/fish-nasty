@@ -76,6 +76,8 @@ FN.ui = (() => {
       const pending = (S.buddies && S.buddies.friendships || []).filter(f => f.status === 'pending' && f.addressee_id === S.user.id).length;
       parts.push(`<div class="card account"><div class="row"><div class="avatar">${esc(((S.profile && S.profile.display_name) || S.user.email || '?').slice(0, 1).toUpperCase())}</div><div class="grow"><div class="big">${esc((S.profile && S.profile.display_name) || S.user.email)}</div><div class="muted small">${S.syncing ? 'Syncing…' : S.lastSync ? 'Synced ' + U.fmtTime(S.lastSync) : 'Signed in'} · pins, favorites and catches are backed up</div></div><button class="icon-btn mini" data-action="account" title="Account">${ICON.edit}</button></div>
         <div class="actions"><button class="btn" data-action="catches">🎣 Catch log${S.catches.length ? ` <em class="count">${S.catches.length}</em>` : ''}</button><button class="btn ghost" data-action="buddies">👥 Buddies${pending ? ` <em class="count hot">${pending}</em>` : ''}</button><button class="btn ghost" data-action="catch-new">+ Log a catch</button></div></div>`);
+    } else if (window.supabaseLoadFailed) {
+      parts.push(`<div class="card"><div class="eyebrow">Account features unavailable</div><p class="small">This device blocked the sign-in library (cdn.jsdelivr.net / unpkg.com). A content blocker, VPN or DNS filter is the usual cause. Pins, favorites and catches still work on this device.</p></div>`);
     } else if (FN.cloud && FN.cloud.available()) {
       if (S.catches && S.catches.length) parts.push(`<button class="card link" data-action="catches"><div class="row"><div class="trophy">🎣</div><div class="grow"><div class="big">Catch log <span class="muted">· ${S.catches.length}</span></div><div class="muted small">Kept on this device. Sign in to back it up and sync.</div></div><div class="chev">›</div></div></button>`);
       parts.push(`<button class="card link" data-action="account"><div class="row"><div class="avatar">☁️</div><div class="grow"><div class="big">Sign in or create an account</div><div class="muted small">Back up and sync your pins and favorites, keep a catch log with photos, and share spots with buddies.</div></div><div class="chev">›</div></div></button>`);
@@ -93,7 +95,7 @@ FN.ui = (() => {
     parts.push(`<h2>My pins <span class="muted small">(${(S.pins || []).length})</span></h2>`);
     if (S.pins && S.pins.length) parts.push(`<div class="list">${S.pins.map(pinRow).join('')}</div>`);
     else parts.push(`<p class="muted small">No pins yet. Tap the <strong>pin</strong> button on the map to drop one at your GPS location or at a spot you choose. You can also long-press (right-click on a computer) anywhere on the map.</p>`);
-    parts.push(`<div class="foot">Data: Minnesota DNR LakeFinder (surveys, stocking, species), MN Geospatial Commons lake bathymetry, Open-Meteo weather, SunCalc moon/sun. Not affiliated with the Minnesota DNR. Check current regulations before you fish.</div>`);
+    parts.push(`<div class="foot">Data: Minnesota DNR LakeFinder (surveys, stocking, species), MN Geospatial Commons lake bathymetry, Open-Meteo weather, SunCalc moon/sun. Not affiliated with the Minnesota DNR. Check current regulations before you fish.<br><br>Fish Nasty v${esc(C.version)} · ${FN.cloud && FN.cloud.available() ? 'cloud connected' : window.supabaseLoadFailed ? 'cloud library blocked on this device' : 'cloud library loading…'}</div>`);
     return parts.join('');
   }
 

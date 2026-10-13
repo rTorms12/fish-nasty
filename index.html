@@ -14,7 +14,7 @@
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" crossorigin="">
-<link rel="stylesheet" href="css/app.css?v=1.4.0">
+<link rel="stylesheet" href="css/app.css?v=1.4.1">
 </head>
 <body>
 <div id="app">
@@ -55,16 +55,26 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin=""></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.9.0/suncalc.min.js" crossorigin=""></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js" crossorigin=""></script>
-<script src="js/config.js?v=1.4.0"></script>
-<script src="js/species.js?v=1.4.0"></script>
-<script src="js/dnr.js?v=1.4.0"></script>
-<script src="js/weather.js?v=1.4.0"></script>
-<script src="js/solunar.js?v=1.4.0"></script>
-<script src="js/forecast.js?v=1.4.0"></script>
-<script src="js/map.js?v=1.4.0"></script>
-<script src="js/ui.js?v=1.4.0"></script>
-<script src="js/views.js?v=1.4.0"></script>
-<script src="js/cloud.js?v=1.4.0"></script>
-<script src="js/app.js?v=1.4.0"></script>
+<script>
+// If the first CDN is blocked (content blocker, DNS filter), try another before giving up on account features
+if (!window.supabase) {
+  var _s = document.createElement('script');
+  _s.src = 'https://unpkg.com/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js';
+  _s.onload = function () { window.dispatchEvent(new Event('supabase-ready')); };
+  _s.onerror = function () { window.supabaseLoadFailed = true; window.dispatchEvent(new Event('supabase-failed')); };
+  document.head.appendChild(_s);
+}
+</script>
+<script src="js/config.js?v=1.4.1"></script>
+<script src="js/species.js?v=1.4.1"></script>
+<script src="js/dnr.js?v=1.4.1"></script>
+<script src="js/weather.js?v=1.4.1"></script>
+<script src="js/solunar.js?v=1.4.1"></script>
+<script src="js/forecast.js?v=1.4.1"></script>
+<script src="js/map.js?v=1.4.1"></script>
+<script src="js/ui.js?v=1.4.1"></script>
+<script src="js/views.js?v=1.4.1"></script>
+<script src="js/cloud.js?v=1.4.1"></script>
+<script src="js/app.js?v=1.4.1"></script>
 </body>
 </html>

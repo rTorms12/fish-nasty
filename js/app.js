@@ -689,6 +689,10 @@
   FN.map.init('map');
   FN.map.renderPins(S.pins, FN.ui.pinPopup);
   if (FN.cloud.init()) FN.cloud.onAuth(onAuth);
+  else {
+    window.addEventListener('supabase-ready', () => { if (FN.cloud.init()) { FN.cloud.onAuth(onAuth); rerender(); } });
+    window.addEventListener('supabase-failed', () => rerender());
+  }
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && cloudOn() && (!S.lastSync || Date.now() - S.lastSync > 120000)) syncAll().catch(() => {}); });
   render();
   if (S.lastLake) {
