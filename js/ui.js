@@ -95,7 +95,7 @@ FN.ui = (() => {
     parts.push(`<h2>My pins <span class="muted small">(${(S.pins || []).length})</span></h2>`);
     if (S.pins && S.pins.length) parts.push(`<div class="list">${S.pins.map(pinRow).join('')}</div>`);
     else parts.push(`<p class="muted small">No pins yet. Tap the <strong>pin</strong> button on the map to drop one at your GPS location or at a spot you choose. You can also long-press (right-click on a computer) anywhere on the map.</p>`);
-    parts.push(`<div class="foot">Data: Minnesota DNR LakeFinder (surveys, stocking, species), MN Geospatial Commons lake bathymetry, Open-Meteo weather, SunCalc moon/sun. Not affiliated with the Minnesota DNR. Check current regulations before you fish.<br><br>Fish Nasty v${esc(C.version)} · ${FN.cloud && FN.cloud.available() ? 'cloud connected' : window.supabaseLoadFailed ? 'cloud library blocked on this device' : 'cloud library loading…'}</div>`);
+    parts.push(`<div class="foot">Data: Minnesota DNR LakeFinder (surveys, stocking, species), MN Geospatial Commons lake bathymetry, Open-Meteo weather, SunCalc moon/sun. Not affiliated with the Minnesota DNR. Check current regulations before you fish.<br><br>Fish Nasty v${esc(C.version)} · ${FN.cloud && FN.cloud.available() ? 'cloud connected' : window.supabaseLoadFailed === 'error' ? 'cloud library failed to start on this device' : window.supabaseLoadFailed ? 'cloud library blocked on this device' : 'cloud library loading…'}</div>`);
     return parts.join('');
   }
 
