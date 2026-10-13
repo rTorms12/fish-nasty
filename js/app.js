@@ -16,7 +16,8 @@
     finder: Object.assign({ species: 'WAE', mode: 'big', scope: 'state', radius: 50, county: '', minLen: 0, limit: 20 }, U.store.get(K.finder, {})),
     user: null, profile: null, authMode: 'signin', authMsg: null, authEmail: '', authBusy: false, syncing: false, lastSync: null,
     catches: U.store.get(K.catches, []), tomb: Object.assign({ pins: [], catches: [], favorites: [] }, U.store.get(K.tomb, {})),
-    catchForm: null, catchPhotoFile: null, catchBusy: false, openCatch: null, buddies: null
+    catchForm: null, catchPhotoFile: null, catchBusy: false, openCatch: null, buddies: null,
+    welcome: false, welcomeSeen: U.store.get('fn.welcome', false)
   };
   let reqId = 0;
 
@@ -195,7 +196,7 @@
     const email = val('auth-email').trim(), password = val('auth-password'), name = val('auth-name').trim();
     S.authEmail = email; S.authBusy = true; setAuthMsg(null); rerender();
     try {
-      if (mode === 'signin') { await FN.cloud.signIn(email, password); }
+      if (mode === 'signin') { await FN.cloud.signIn(email, password); S.welcome = false; U.store.set('fn.welcome', true); }
       else if (mode === 'signup') {
         const d = await FN.cloud.signUp(email, password, name);
         if (d && d.session) setAuthMsg('ok', 'Account created — you are signed in.');
@@ -212,7 +213,7 @@
     if (event === 'PASSWORD_RECOVERY') { S.view = 'account'; setAuthMsg('ok', 'You are signed in — set a new password below.'); render(); return; }
     if (S.user && (!was || was.id !== S.user.id || event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
       try { S.profile = await FN.cloud.getProfile(true); } catch (e) { S.profile = null; }
-      if (S.view === 'account' && event === 'SIGNED_IN') { S.view = S.prevView && S.prevView !== 'account' ? S.prevView : 'home'; toast(`Signed in as ${(S.profile && S.profile.display_name) || S.user.email}`); }
+      if (S.view === 'account' && (event === 'SIGNED_IN' || S.welcome)) { S.welcome = false; U.store.set('fn.welcome', true); S.view = S.prevView && S.prevView !== 'account' ? S.prevView : 'home'; if (event === 'SIGNED_IN') toast(`Signed in as ${(S.profile && S.profile.display_name) || S.user.email}`); }
       rerender();
       syncAll().catch(e => console.warn('sync failed', e));
       loadBuddies(true).catch(() => {});
@@ -572,6 +573,7 @@
       case 'top-mode': S.topMode = el.dataset.mode; U.store.set('fn.topMode', S.topMode); rerender(); break;
       case 'account': if (S.view !== 'account') S.prevView = S.view; S.view = 'account'; setAuthMsg(null); render(); if (isMobile()) setSheet('full'); break;
       case 'auth-mode': S.authMode = el.dataset.mode; setAuthMsg(null); rerender(); break;
+      case 'welcome-skip': S.welcome = false; S.welcomeSeen = true; U.store.set('fn.welcome', true); S.view = 'home'; render(); break;
       case 'signout': FN.cloud.signOut().then(() => toast('Signed out')); break;
       case 'sync-now': syncAll().then(() => toast('Synced')).catch(e => toast('Sync failed: ' + e.message)); break;
       case 'catches': S.prevView = 'home'; S.view = 'catches'; render(); if (isMobile()) setSheet('full'); break;
@@ -701,6 +703,8 @@
   }
   routeFromHash();
   if (window.matchMedia('(max-width: 899px)').matches) setSheet(location.hash ? 'half' : 'half');
+  const showWelcome = () => { if (S.welcomeSeen || S.user || location.hash.includes('lake/')) return; S.welcome = true; S.authMode = 'signup'; S.prevView = 'home'; S.view = 'account'; render(); if (isMobile()) setSheet('full'); };
+  if (FN.cloud.available()) showWelcome(); else window.addEventListener('supabase-ready', showWelcome, { once: true });
 
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
     navigator.serviceWorker.register('sw.js').catch(() => {});

@@ -3,7 +3,7 @@ window.FN = window.FN || {};
 
 FN.config = {
   appName: 'Fish Nasty',
-  version: '1.4.2',
+  version: '1.4.3',
   tz: 'America/Chicago',
 
   // Minnesota DNR LakeFinder (public JSON/HTML endpoints, CORS enabled)

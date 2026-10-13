@@ -320,6 +320,7 @@ textarea { resize: vertical; }
 .sp-head { gap: 10px; }
 
 /* ---------- account / cloud ---------- */
+.signin-card { border-color: rgba(88,209,255,.45); background: linear-gradient(135deg, rgba(88,209,255,.14), var(--panel-2)); }
 .avatar { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, #1a6fb5, #0b2a44); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 18px; flex: none; }
 .card.account .icon-btn.mini { width: 36px; height: 36px; background: transparent; box-shadow: none; color: var(--muted); }
 .card.account .icon-btn.mini svg { width: 18px; height: 18px; }

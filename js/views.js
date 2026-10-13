@@ -33,7 +33,10 @@ Object.assign(FN.ui, (() => {
     }
     const mode = S.authMode || 'signin';
     const tabs = [['signin', 'Sign in'], ['signup', 'Create account'], ['magic', 'Email me a link']];
-    return head('Sign in', 'Sync pins and favorites, log catches, share with buddies') + `
+    const welcome = !!S.welcome;
+    return (welcome
+      ? `<div class="hero"><div class="logo">${ICON.fish}</div><div><h1>Welcome to Fish Nasty</h1><p>Create a free account to back up your pins, log catches with photos, and share spots with buddies.</p></div></div>`
+      : head('Sign in', 'Sync pins and favorites, log catches, share with buddies')) + `
       <div class="seg">${tabs.map(([k, n]) => `<button class="${mode === k ? 'on' : ''}" data-action="auth-mode" data-mode="${k}">${n}</button>`).join('')}</div>
       ${msg(S.authMsg)}
       <form data-form="auth" class="card" autocomplete="on">
@@ -44,7 +47,8 @@ Object.assign(FN.ui, (() => {
         <div class="actions"><button class="btn" type="submit" ${S.authBusy ? 'disabled' : ''}>${S.authBusy ? 'Working…' : mode === 'signin' ? 'Sign in' : mode === 'signup' ? 'Create account' : mode === 'magic' ? 'Send sign-in link' : 'Send reset link'}</button>
         ${mode === 'signin' ? `<button class="btn ghost" type="button" data-action="auth-mode" data-mode="reset">Forgot password?</button>` : ''}</div>
       </form>
-      <p class="muted small">${mode === 'magic' ? 'The link signs you in without a password. Open it on the same phone or computer you are using now.' : mode === 'signup' ? 'You may get a confirmation email first; tap its link, then sign in here.' : 'Your pins and favorites stay on this device either way; signing in backs them up and syncs them.'}</p>`;
+      <p class="muted small">${mode === 'magic' ? 'The link signs you in without a password. Open it on the same phone or computer you are using now.' : mode === 'signup' ? 'You may get a confirmation email first; tap its link, then sign in here.' : 'Your pins and favorites stay on this device either way; signing in backs them up and syncs them.'}</p>
+      ${welcome ? `<div class="actions"><button class="btn ghost" data-action="welcome-skip">Continue without an account</button></div>` : ''}`;
   }
 
   /* ---------------- CATCH FORM ---------------- */

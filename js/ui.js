@@ -49,6 +49,9 @@ FN.ui = (() => {
     const favs = S.favorites || [];
     const parts = [];
     parts.push(`<div class="hero"><div class="logo">${ICON.fish}</div><div><h1>Fish Nasty</h1><p>Minnesota lake maps, DNR surveys, stocking records and a bite forecast.</p></div></div>`);
+    if (!S.user && FN.cloud && FN.cloud.available()) {
+      parts.push(`<button class="card link signin-card" data-action="account"><div class="row"><div class="avatar">☁️</div><div class="grow"><div class="big">Sign in or create an account</div><div class="muted small">Back up and sync your pins and favorites, keep a catch log with photos, and share spots with buddies.</div></div><div class="chev">›</div></div></button>`);
+    }
 
     // Bite now
     if (S.homeBite) {
@@ -80,7 +83,6 @@ FN.ui = (() => {
       parts.push(`<div class="card"><div class="eyebrow">Account features unavailable</div><p class="small">This device blocked the sign-in library (cdn.jsdelivr.net / unpkg.com). A content blocker, VPN or DNS filter is the usual cause. Pins, favorites and catches still work on this device.</p></div>`);
     } else if (FN.cloud && FN.cloud.available()) {
       if (S.catches && S.catches.length) parts.push(`<button class="card link" data-action="catches"><div class="row"><div class="trophy">🎣</div><div class="grow"><div class="big">Catch log <span class="muted">· ${S.catches.length}</span></div><div class="muted small">Kept on this device. Sign in to back it up and sync.</div></div><div class="chev">›</div></div></button>`);
-      parts.push(`<button class="card link" data-action="account"><div class="row"><div class="avatar">☁️</div><div class="grow"><div class="big">Sign in or create an account</div><div class="muted small">Back up and sync your pins and favorites, keep a catch log with photos, and share spots with buddies.</div></div><div class="chev">›</div></div></button>`);
     }
     if (S.nearby && S.nearby.length) {
       parts.push(`<h2>Lakes with depth maps near you</h2><div class="list">${S.nearby.slice(0, 12).map(l => lakeRow({ id: l.id, name: l.name, county: l.county, acres: l.acres })).join('')}</div>`);
