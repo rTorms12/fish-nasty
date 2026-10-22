@@ -79,10 +79,9 @@ select { font: inherit; background: var(--panel-2); color: var(--text); border: 
 .lg i { width: 18px; height: 10px; border-radius: 3px; display: inline-block; border: 1px solid rgba(255,255,255,.25); }
 
 /* bottom sheet */
-.sheet { position: absolute; left: 0; right: 0; bottom: 0; height: 46%; max-height: calc(100% - var(--sat) - 72px); background: var(--panel); border-radius: 22px 22px 0 0; box-shadow: 0 -8px 30px rgba(0,0,0,.45); z-index: 1200; display: flex; flex-direction: column; transition: height .28s cubic-bezier(.2,.8,.2,1); padding-bottom: var(--sab); }
-.sheet.dragging, .sheet.custom { transition: none; }
-.sheet.collapsed { height: calc(72px + var(--sab)); }
-.sheet.full { height: calc(100% - var(--sat) - 72px); }
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; height: calc(100% - var(--sat) - 68px); background: var(--panel); border-radius: 22px 22px 0 0; box-shadow: 0 -8px 30px rgba(0,0,0,.45); z-index: 1200; display: flex; flex-direction: column; transform: translateY(var(--off, 54%)); transition: transform .32s cubic-bezier(.2,.8,.2,1); will-change: transform; padding-bottom: var(--sab); }
+/* The sheet never changes height (that would re-layout the page every frame); it slides down by --off px and the body gets that much extra bottom padding so everything stays reachable */
+.sheet.dragging { transition: none; }
 .sheet-handle { height: 34px; display: flex; align-items: center; justify-content: center; cursor: grab; touch-action: none; flex: none; }
 .sheet-handle:active { cursor: grabbing; }
 .sheet-handle span { width: 60px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.35); }
@@ -91,9 +90,8 @@ select { font: inherit; background: var(--panel-2); color: var(--text); border: 
 .sheet-close svg { width: 16px; height: 16px; }
 #panel-open { position: absolute; left: 12px; bottom: 28px; z-index: 1150; border: 0; border-radius: 14px; background: rgba(13,30,46,.97); color: var(--text); padding: 10px 14px 10px 10px; display: flex; align-items: center; gap: 6px; font-weight: 700; box-shadow: 0 6px 18px rgba(0,0,0,.4); }
 #panel-open svg { width: 18px; height: 18px; }
-.sheet-body { flex: 1; overflow: auto; padding: 0 16px 24px; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; contain: content; }
+.sheet-body { flex: 1; overflow: auto; padding: 0 16px calc(24px + var(--off, 0px)); -webkit-overflow-scrolling: touch; overscroll-behavior: contain; contain: content; }
 .card, .toprow, .crow, .lrow, .feed, .sp-block { contain: content; }
-.sheet.dragging { will-change: height; }
 .leaflet-tile { image-rendering: auto; }
 
 /* home */
@@ -237,7 +235,6 @@ select { font: inherit; background: var(--panel-2); color: var(--text); border: 
 
 /* phone: the X slides the sheet away; a tab at the bottom brings it back. Map layers panel fills the width with bigger controls */
 @media (max-width: 899px) {
-  .sheet { transition: height .28s cubic-bezier(.2,.8,.2,1), transform .3s cubic-bezier(.2,.8,.2,1); }
   #app.panel-closed .sheet { transform: translateY(calc(100% + 40px)); box-shadow: none; pointer-events: none; }
   #panel-open { left: 50%; right: auto; bottom: calc(var(--sab) + 18px); transform: translateX(-50%); padding: 11px 18px 11px 14px; font-size: 15px; }
   .fabs button { width: 52px; height: 48px; gap: 2px; }
@@ -264,7 +261,7 @@ select { font: inherit; background: var(--panel-2); color: var(--text); border: 
 
 /* desktop: side panel layout */
 @media (min-width: 900px) {
-  .sheet, .sheet.collapsed, .sheet.half, .sheet.full, .sheet.custom { top: 0; bottom: 0; left: 0; right: auto; width: var(--panel-w); height: auto; max-height: none; border-radius: 0; padding-top: 72px; transition: transform .25s ease; }
+  .sheet, .sheet.collapsed, .sheet.half, .sheet.full, .sheet.custom { top: 0; bottom: 0; left: 0; right: auto; width: var(--panel-w); height: auto; max-height: none; border-radius: 0; padding-top: 72px; transition: transform .25s ease; transform: none; --off: 0px; }
   .sheet-handle { display: none; }
   .sheet-close { top: 80px; right: 14px; }
   .sheet-body > .lake-head, .sheet-body > .hero { padding-right: 44px; }   /* room for the close X on the first row */

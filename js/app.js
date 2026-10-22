@@ -83,7 +83,20 @@
   /* ---------- sheet ---------- */
   const sheet = $('#sheet');
   const SNAPS = ['collapsed', 'half', 'full', 'custom'];
-  function setSheet(state) { sheet.classList.remove(...SNAPS); sheet.classList.add(state); sheet.style.height = ''; showPanel(); }
+  // The sheet is always laid out at its full height and slid down by --off px (compositor-only, so it stays smooth on phones)
+  let sheetCustom = 0;                                                    // visible px when the user leaves it somewhere in between
+  const sheetFull = () => sheet.getBoundingClientRect().height;           // translate does not change the measured height
+  const sheetSab = () => parseFloat(getComputedStyle(sheet).paddingBottom) || 0;
+  const halfVisible = () => Math.round(window.innerHeight * 0.46);
+  const visibleFor = state => state === 'collapsed' ? 72 + sheetSab() : state === 'half' ? halfVisible() : state === 'custom' ? (sheetCustom || halfVisible()) : sheetFull();
+  const setOffset = visible => sheet.style.setProperty('--off', Math.max(0, Math.round(sheetFull() - visible)) + 'px');
+  function applySheet() {
+    if (!isMobile()) { sheet.style.removeProperty('--off'); return; }
+    setOffset(visibleFor(SNAPS.find(s => sheet.classList.contains(s)) || 'half'));
+  }
+  function setSheet(state) { sheet.classList.remove(...SNAPS); sheet.classList.add(state); sheet.style.height = ''; applySheet(); showPanel(); }
+  let resizeTimer = 0;
+  window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(applySheet, 80); });
   const maxSheetHeight = () => { const tb = $('.topbar').getBoundingClientRect(); return Math.max(120, window.innerHeight - tb.bottom - 12); };
   function showPanel() { document.getElementById('app').classList.remove('panel-closed'); $('#panel-open').classList.add('hidden'); }
   // The X slides the panel off screen on every device; the "Panel" tab (or any lake, search result, pin or tool) brings it back
@@ -93,33 +106,50 @@
     FN.map.getMap().invalidateSize();
   }
   (function dragSetup() {
-    const handle = $('#sheet-handle');
-    let startY = 0, startH = 0, dragging = false, moved = false;
-    handle.addEventListener('pointerdown', e => {
-      if (window.matchMedia('(min-width: 900px)').matches) return;
-      dragging = true; moved = false; startY = e.clientY; startH = sheet.getBoundingClientRect().height;
-      handle.setPointerCapture(e.pointerId); sheet.classList.add('dragging');
-    });
-    handle.addEventListener('pointermove', e => {
-      if (!dragging) return;
-      const dy = e.clientY - startY; if (Math.abs(dy) > 4) moved = true;
-      const h = U.clamp(startH - dy, 60, maxSheetHeight());
-      sheet.style.height = h + 'px';
-    });
-    const end = () => {
+    const handle = $('#sheet-handle'), body = $('#sheet-body');
+    const visibleNow = () => window.innerHeight - sheet.getBoundingClientRect().top;
+    let startY = 0, startVis = 0, lastY = 0, lastT = 0, vel = 0, dragging = false, moved = false;
+    function begin(y) { dragging = true; moved = false; startY = lastY = y; lastT = performance.now(); vel = 0; startVis = visibleNow(); sheet.classList.add('dragging'); }
+    function move(y) {
+      const dy = y - startY; if (Math.abs(dy) > 4) moved = true;
+      const now = performance.now(); if (now - lastT > 0) vel = (y - lastY) / (now - lastT); lastY = y; lastT = now;   // px per ms, + = down
+      setOffset(U.clamp(startVis - dy, 40, sheetFull()));
+    }
+    function finish(tapCycles) {
       if (!dragging) return; dragging = false; sheet.classList.remove('dragging');
-      const h = sheet.getBoundingClientRect().height, max = maxSheetHeight();
-      if (!moved) { // tap on the bar: collapsed -> half -> full -> half
-        const cur = SNAPS.find(s => sheet.classList.contains(s)) || 'half';
-        setSheet(cur === 'collapsed' ? 'half' : cur === 'half' ? 'full' : 'half');
-        return;
-      }
-      // Leave it exactly where it was dropped; snap only at the two ends
-      if (h < 110) setSheet('collapsed');
-      else if (h > max - 24) setSheet('full');
-      else { sheet.classList.remove(...SNAPS); sheet.classList.add('custom'); sheet.style.height = h + 'px'; }
-    };
+      const vis = visibleNow(), max = sheetFull(), half = halfVisible(), cur = SNAPS.find(s => sheet.classList.contains(s)) || 'half';
+      if (!moved) { if (tapCycles) setSheet(cur === 'collapsed' ? 'half' : cur === 'half' ? 'full' : 'half'); else applySheet(); return; }   // tap on the bar: collapsed -> half -> full -> half
+      if (vel > 0.6) { if (vis > half + 60) setSheet('half'); else closePanel(); return; }     // quick flick down: full -> half, anything lower -> closed
+      if (vel < -0.6) { setSheet('full'); return; }                                           // quick flick up
+      if (vis < half * 0.5) closePanel();                                                     // dragged most of the way down: close
+      else if (vis > max - 40) setSheet('full');
+      else { sheetCustom = Math.round(vis); sheet.classList.remove(...SNAPS); sheet.classList.add('custom'); applySheet(); }   // leave it where it was dropped
+    }
+    // The bar: drag to resize, tap to cycle
+    handle.addEventListener('pointerdown', e => { if (!isMobile()) return; begin(e.clientY); handle.setPointerCapture(e.pointerId); });
+    handle.addEventListener('pointermove', e => { if (dragging) move(e.clientY); });
+    const end = () => finish(true);
     handle.addEventListener('pointerup', end); handle.addEventListener('pointercancel', end);
+    // The content: when it is scrolled to the top, pulling down drags the sheet instead of over-scrolling (swipe down to close)
+    let tracking = false, took = false, tx = 0, ty = 0;
+    body.addEventListener('touchstart', e => {
+      if (!isMobile() || e.touches.length !== 1 || e.target.closest('input, textarea, select, svg')) { tracking = false; return; }
+      tracking = true; took = false; tx = e.touches[0].clientX; ty = e.touches[0].clientY;
+    }, { passive: true });
+    body.addEventListener('touchmove', e => {
+      if (!tracking) return;
+      const t = e.touches[0];
+      if (!took) {
+        const dx = t.clientX - tx, dy = t.clientY - ty;
+        if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;                                                 // too early to tell
+        if (body.scrollTop > 0 || dy <= 0 || Math.abs(dx) > Math.abs(dy)) { tracking = false; return; }   // a normal scroll or a sideways swipe: leave it to the browser
+        took = true; begin(t.clientY);
+      }
+      if (e.cancelable) e.preventDefault();
+      move(t.clientY);
+    }, { passive: false });
+    const endTouch = () => { if (took) finish(false); tracking = false; took = false; };
+    body.addEventListener('touchend', endTouch); body.addEventListener('touchcancel', endTouch);
   })();
 
   /* ---------- search ---------- */
