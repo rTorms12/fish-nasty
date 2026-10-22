@@ -10,7 +10,8 @@ Object.assign(FN.ui, (() => {
   const condLine = c => {
     const k = c.conditions || {};
     const parts = [];
-    if (k.code != null) parts.push(`${FN.weather.describe(k.code)[1]} ${k.temp != null ? Math.round(k.temp) + '°F' : ''}`.trim());
+    if (k.code != null) parts.push(`${FN.weather.describe(k.code)[1]} ${k.temp != null ? Math.round(k.temp) + '°F' : ''}${k.dayHi != null ? ` (day ${Math.round(k.dayHi)}/${Math.round(k.dayLo)})` : ''}`.trim());
+    if (k.waterTemp != null) parts.push(`water ~${Math.round(k.waterTemp)}°F`);
     if (k.pressure != null) parts.push(`${FN.weather.hPaToInHg(k.pressure)} inHg${k.pressureTrend ? ' ' + k.pressureTrend : ''}`);
     if (k.wind != null) parts.push(`wind ${Math.round(k.wind)} mph ${U.windDir(k.windDir)}`.trim());
     if (k.moonName) parts.push(k.moonName.toLowerCase());
@@ -86,13 +87,31 @@ Object.assign(FN.ui, (() => {
   /* ---------------- CATCH LOG ---------------- */
   const catchRow = (c, open = false) => {
     const p = FN.profileFor(c.species);
-    return `<button class="crow ${open ? 'open' : ''}" data-action="catch-open" data-id="${esc(c.id)}">${speciesIcon(c.species, 'md')}<div class="grow"><div class="t">${esc(p ? p.name : (c.speciesName || c.species))}${c.length ? ` · <b>${c.length}″</b>` : ''}${c.weight ? ` · ${c.weight} lb` : ''}${c.released ? ' · released' : ''}</div><div class="s">${c.lakeName ? esc(c.lakeName) + ' · ' : ''}${fmtWhen(c.caughtAt)}${c.shared ? ' · shared' : ''}${c.synced === false ? ' · <em>not backed up yet</em>' : ''}</div></div>${c.photoPath || c.photoLocal ? '<span class="has-photo">📷</span>' : ''}<div class="chev">${open ? '⌄' : '›'}</div></button>`;
+    return `<button class="crow ${open ? 'open' : ''}" data-action="catch-open" data-id="${esc(c.id)}">${speciesIcon(c.species, 'md')}<div class="grow"><div class="t">${esc(p ? p.name : (c.speciesName || c.species))}${c.length ? ` · <b>${c.length}″</b>` : ''}${c.weight ? ` · ${c.weight} lb` : ''}${c.released ? ' · released' : ''}</div><div class="s">${c.pinName ? '📍 ' + esc(c.pinName) + ' · ' : c.lakeName ? esc(c.lakeName) + ' · ' : ''}${fmtWhen(c.caughtAt)}${c.shared ? ' · shared' : ''}${c.synced === false ? ' · <em>not backed up yet</em>' : ''}</div></div>${c.photoPath || c.photoLocal ? '<span class="has-photo">📷</span>' : ''}<div class="chev">${open ? '⌄' : '›'}</div></button>`;
+  };
+  const condGrid = c => {
+    const k = c.conditions || {};
+    const fmtT = iso => U.fmtTime(new Date(iso));
+    const rows = [
+      k.code != null ? ['Sky', `${FN.weather.describe(k.code)[0]} ${FN.weather.describe(k.code)[1]}${k.cloud != null ? ` · ${Math.round(k.cloud)}% cloud` : ''}`] : null,
+      k.temp != null ? ['Air', `${Math.round(k.temp)}°F${k.dayHi != null ? ` · day ${Math.round(k.dayHi)}/${Math.round(k.dayLo)}°` : ''}`] : null,
+      k.waterTemp != null ? ['Water (modeled)', `~${Math.round(k.waterTemp)}°F`] : null,
+      k.wind != null ? ['Wind', `${Math.round(k.wind)} mph ${U.windDir(k.windDir)}${k.gust ? ` · gusts ${Math.round(k.gust)}` : ''}`.trim()] : null,
+      k.pressure != null ? ['Barometer', `${FN.weather.hPaToInHg(k.pressure)} inHg${k.pressureTrend ? ` · ${k.pressureTrend}` : ''}`] : null,
+      k.precip ? ['Precip', `${k.precip}" that hour`] : null,
+      k.moonName ? ['Moon', `${k.moonName}${k.solunar != null ? ` · solunar ${k.solunar >= 0.6 ? 'major' : k.solunar >= 0.3 ? 'minor' : 'quiet'}` : ''}`] : null,
+      k.sunrise ? ['Sun', `${fmtT(k.sunrise)} – ${fmtT(k.sunset)}`] : null,
+      k.biteScore != null ? ['Bite score', `${k.biteScore} at that hour${k.dayScore != null ? ` · ${k.dayScore} for the day` : ''}`] : null
+    ].filter(Boolean);
+    if (!rows.length) return '';
+    return `<div class="cond"><div class="eyebrow">Conditions when caught</div>${rows.map(([a, b]) => `<div class="irow"><span>${a}</span><b>${esc(b)}</b></div>`).join('')}</div>`;
   };
   const catchDetail = (c, S) => `<div class="cdetail">
       ${c.photoLocal || c.photoPath ? `<img class="cphoto" ${c.photoLocal ? `src="${c.photoLocal}"` : `data-photo="${esc(c.photoPath)}"`} alt="">` : ''}
+      ${c.pinName ? `<div><b>Spot:</b> 📍 ${esc(c.pinName)}${c.pinId && !(S.catchFilter && S.catchFilter.pinId === c.pinId) ? ` <button class="btn small ghost inline" data-action="catches-at-pin" data-id="${esc(c.pinId)}">All catches here</button>` : ''}</div>` : ''}
       ${c.bait ? `<div><b>Bait:</b> ${esc(c.bait)}</div>` : ''}
       ${c.notes ? `<div class="notes">${esc(c.notes)}</div>` : ''}
-      ${condLine(c) ? `<div class="muted small">${esc(condLine(c))}</div>` : ''}
+      ${condGrid(c)}
       <div class="actions">
         ${c.userId && S.user && c.userId !== S.user.id ? '' : `<button class="btn small" data-action="catch-edit" data-id="${esc(c.id)}">${ICON.edit} Edit</button>`}
         ${c.lakeId ? `<button class="btn small ghost" data-action="open-lake" data-id="${esc(c.lakeId)}">Lake</button>` : ''}
@@ -101,9 +120,12 @@ Object.assign(FN.ui, (() => {
       </div></div>`;
 
   function catches(S) {
-    const list = [...S.catches].sort((a, b) => (a.caughtAt < b.caughtAt ? 1 : -1));
+    const F = S.catchFilter;
+    const all = [...S.catches].sort((a, b) => (a.caughtAt < b.caughtAt ? 1 : -1));
+    const list = F && F.pinId ? all.filter(c => c.pinId === F.pinId) : all;
     const ins = FN.forecast.insights(list, 'ALL');
-    const parts = [head('Catch log', `${list.length} catch${list.length === 1 ? '' : 'es'}${S.user ? '' : ' · on this device only'}`, 'home', `<button class="icon-btn" data-action="catch-new" title="Log a catch">${ICON.plus}</button>`)];
+    const parts = [head(F && F.pinId ? 'Catches at this spot' : 'Catch log', `${F && F.pinId ? esc(F.name) + ' · ' : ''}${list.length} catch${list.length === 1 ? '' : 'es'}${S.user ? '' : ' · on this device only'}`, 'home', `<button class="icon-btn" data-action="catch-new" ${F && F.pinId ? `data-pin-id="${esc(F.pinId)}"` : ''} title="Log a catch">${ICON.plus}</button>`)];
+    if (F && F.pinId) parts.push(`<div class="actions"><button class="btn small ghost" data-action="catch-filter-clear">Show all catches</button><button class="btn small ghost" data-action="pin-open" data-id="${esc(F.pinId)}">Show pin on map</button></div>`);
     if (!list.length) parts.push(`<div class="card"><p>No catches yet. Tap <b>+</b> to log one, or use “Log catch” on any pin.</p><div class="actions"><button class="btn" data-action="catch-new">+ Log a catch</button></div></div>`);
     if (ins) {
       const bySpecies = new Map();

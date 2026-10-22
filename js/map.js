@@ -290,13 +290,14 @@ FN.map = (() => {
       let m = pinMarkers.get(p.id);
       if (!m) {
         m = L.marker([p.lat, p.lon], { icon: pinIcon(p.color), zIndexOffset: 600, title: p.name });
-        m.bindPopup('', { maxWidth: 280 });
+        m.bindPopup('', { maxWidth: 280, autoPanPaddingTopLeft: [12, 72], autoPanPaddingBottomRight: [80, 12] });   // keep clear of the search bar and tool stack
+        m.on('popupopen', () => m.setPopupContent(m._fnPopup(m._fnPin)));   // fresh catch tally every time it opens
         pinsGroup.addLayer(m); pinMarkers.set(p.id, m);
       } else {
         m.setLatLng([p.lat, p.lon]);
         if (m._fnColor !== p.color) m.setIcon(pinIcon(p.color));
       }
-      m._fnColor = p.color;
+      m._fnColor = p.color; m._fnPin = p; m._fnPopup = popupHtml;
       m.setPopupContent(popupHtml(p));
     }
   }

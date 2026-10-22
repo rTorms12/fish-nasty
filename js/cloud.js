@@ -62,13 +62,14 @@ FN.cloud = (() => {
 
   /* ---------- catch log ---------- */
   const catchToRow = c => ({
-    user_id: uid(), client_id: c.id, lake_id: c.lakeId || null, lake_name: c.lakeName || null, pin_id: c.pinServerId || null,
+    user_id: uid(), client_id: c.id, lake_id: c.lakeId || null, lake_name: c.lakeName || null, pin_id: c.pinServerId || null, pin_client_id: c.pinId || null, pin_name: c.pinName || null,
     species_code: c.species, species_name: c.speciesName || FN.speciesName(c.species), length_in: c.length || null, weight_lb: c.weight || null,
     bait: c.bait || null, notes: c.notes || '', photo_path: c.photoPath || null, caught_at: c.caughtAt, lat: c.lat || null, lon: c.lon || null,
     conditions: c.conditions || {}, shared: !!c.shared, released: c.released == null ? null : !!c.released, created_at: c.created || c.caughtAt, updated_at: new Date().toISOString(), deleted_at: null
   });
   const rowToCatch = r => ({
     id: r.client_id, serverId: r.id, userId: r.user_id, lakeId: r.lake_id, lakeName: r.lake_name, species: r.species_code, speciesName: r.species_name,
+    pinId: r.pin_client_id || null, pinName: r.pin_name || null, pinServerId: r.pin_id || null,
     length: r.length_in, weight: r.weight_lb, bait: r.bait, notes: r.notes || '', photoPath: r.photo_path, caughtAt: r.caught_at, lat: r.lat, lon: r.lon,
     conditions: r.conditions || {}, shared: !!r.shared, released: r.released, created: r.created_at, updated: r.updated_at, synced: true,
     owner: r.profiles ? (r.profiles.display_name || r.profiles.email) : null

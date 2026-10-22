@@ -512,17 +512,29 @@ FN.ui = (() => {
     return false;
   };
   const coords = p => `${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`;
+  const catchesAtPin = pinId => ((FN.app && FN.app.state && FN.app.state.catches) || []).filter(c => c.pinId === pinId).sort((a, b) => (a.caughtAt < b.caughtAt ? 1 : -1));
+  function pinCatchSummary(p) {
+    const cs = catchesAtPin(p.id);
+    if (!cs.length) return '';
+    const withLen = cs.filter(c => c.length);
+    const biggest = withLen.length ? withLen.reduce((a, b) => (b.length > a.length ? b : a)) : null;
+    const bySp = new Map(); for (const c of cs) { const n = (FN.profileFor(c.species) || {}).name || c.speciesName || c.species; bySp.set(n, (bySp.get(n) || 0) + 1); }
+    const spText = [...bySp.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([n, k]) => `${k} ${n.toLowerCase()}`).join(', ');
+    return `<div class="pp-catches">🎣 <b>${cs.length} catch${cs.length === 1 ? '' : 'es'} here</b> · ${esc(spText)}${biggest ? ` · biggest ${biggest.length}″ ${esc(((FN.profileFor(biggest.species) || {}).name || '').toLowerCase())}` : ''} · last ${new Date(cs[0].caughtAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>`;
+  }
   function pinPopup(p) {
+    const n = catchesAtPin(p.id).length;
     return `<div class="pin-popup">
       <div class="pp-name"><i class="dot" style="background:${esc(p.color || '#ffb454')}"></i>${esc(p.name)}</div>
       <div class="pp-meta">${p.lakeName ? esc(p.lakeName) + ' · ' : ''}${p.depth != null ? p.depth + ' ft deep · ' : ''}${new Date(p.created).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}${p.source === 'gps' ? ' · GPS' : ''}${p.shared ? ' · shared with buddies' : ''}</div>
       ${p.notes ? `<div class="pp-notes">${esc(p.notes)}</div>` : ''}
+      ${pinCatchSummary(p)}
+      <div class="pp-actions primary"><button class="btn small" data-action="catch-new" data-pin-id="${esc(p.id)}">🎣 Log a catch here</button>${n ? `<button class="btn small ghost" data-action="catches-at-pin" data-id="${esc(p.id)}">Catches here (${n})</button>` : ''}</div>
       <div class="pp-coords">${coords(p)}</div>
       <div class="pp-actions">
-        <button class="btn small" data-action="pin-edit" data-id="${esc(p.id)}">${ICON.edit} Edit</button>
+        <button class="btn small ghost" data-action="pin-edit" data-id="${esc(p.id)}">${ICON.edit} Edit</button>
         <a class="btn small ghost" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}" target="_blank" rel="noopener">Directions ${ICON.ext}</a>
         <button class="btn small ghost" data-action="pin-copy" data-id="${esc(p.id)}">Copy coords</button>
-        <button class="btn small ghost" data-action="catch-new" data-pin-id="${esc(p.id)}">🎣 Log catch</button>
         ${p.lakeId ? `<button class="btn small ghost" data-action="open-lake" data-id="${esc(p.lakeId)}">Lake info</button>` : ''}
         <button class="btn small danger" data-action="pin-delete" data-id="${esc(p.id)}">Delete</button>
       </div></div>`;
@@ -537,6 +549,9 @@ FN.ui = (() => {
     <div class="field"><label>Color</label><div class="colors">${C.pinColors.map(c => `<button class="${(p.color || '#ffb454') === c ? 'on' : ''}" style="background:${c}" data-action="pin-color" data-c="${c}" aria-label="color"></button>`).join('')}</div></div>
     <label class="switch"><input type="checkbox" id="pin-shared" ${p.shared ? 'checked' : ''}><span>Share this pin with my buddies${FN.app && FN.app.state.user ? '' : ' <em class="muted">(sign in to share)</em>'}</span></label>
     <div class="actions"><button class="btn" data-action="pin-save" data-id="${esc(p.id)}">Save</button><button class="btn ghost" data-action="pin-open" data-id="${esc(p.id)}">Show on map</button><button class="btn ghost danger" data-action="pin-delete" data-id="${esc(p.id)}">Delete</button></div>
+    <h2>Catches at this spot <span class="muted small">(${catchesAtPin(p.id).length})</span></h2>
+    <div class="actions"><button class="btn small" data-action="catch-new" data-pin-id="${esc(p.id)}">🎣 Log a catch here</button></div>
+    ${catchesAtPin(p.id).length ? `<div class="list">${catchesAtPin(p.id).slice(0, 8).map(c => FN.ui.catchRow(c)).join('')}</div>` : `<p class="muted small">Nothing logged here yet. Each catch saves the species, size, time and the weather, barometer, water temperature and moon for that moment.</p>`}
     <p class="muted small">Pins are saved on this device. Dropped ${new Date(p.created).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}${p.accuracy ? ` · GPS accuracy ±${Math.round(p.accuracy)} m` : ''}.</p>`;
   }
   const pinMenu = () => `<div class="panel-head"><strong>Drop a pin</strong><button class="icon-btn" data-action="pin-menu-close">${ICON.close}</button></div>

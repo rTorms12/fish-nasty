@@ -407,6 +407,11 @@
         else l.serverId = sc.serverId;
       }
       S.catches = [...lc.values()];
+      // Keep catch ↔ pin links intact across devices: fill in whichever id is missing
+      for (const c of S.catches) {
+        if (!c.pinId && c.pinServerId) { const p = S.pins.find(x => x.serverId === c.pinServerId); if (p) { c.pinId = p.id; c.pinName = c.pinName || p.name; } }
+        if (c.pinId && !c.pinServerId) { const p = pinById(c.pinId); if (p && p.serverId) c.pinServerId = p.serverId; }
+      }
       for (const c of S.catches) if (c.photoLocal && !c.photoPath) { try { c.photoPath = await FN.cloud.uploadPhoto(dataURLToBlob(c.photoLocal), c.id); delete c.photoLocal; } catch (e) { /* try next time */ } }
       const pushed = await FN.cloud.pushCatches(S.catches);
       const idMap = new Map((pushed || []).map(r => [r.client_id, r.id]));
@@ -475,6 +480,8 @@
       if (S.view === 'lake' && !S.lake) S.view = 'home';
       if (S.view === 'pin') S.view = 'home';
       computeBite(); render();
+      // Logged from a pin: land back on that pin so the new tally is right there
+      if (f.pinId && i < 0 && S.view !== 'catches' && pinById(f.pinId)) { if (isMobile()) setSheet('collapsed'); FN.map.openPin(f.pinId); }
     } catch (e) { S.catchBusy = false; toast('Could not save: ' + e.message); rerender(); }
   }
   // Weather, barometer, moon and bite score at the moment of the catch
@@ -485,14 +492,22 @@
       const info = FN.solunar.dayInfo(date, lat, lon);
       out.moonPhase = info.phase; out.moonName = info.phaseName; out.solunar = Math.round(FN.solunar.strengthAt(date, info) * 100) / 100;
       let bite = (S.bite && S.lake && Math.abs(S.lake.lat - lat) < 0.05 && Math.abs(S.lake.lon - lon) < 0.08) ? S.bite : null;
-      if (!bite) { const weather = await FN.weather.forecast(lat, lon); bite = FN.forecast.compute(weather, lat, lon, species || 'ALL'); }
+      if (!bite) { const [weather, history] = await Promise.all([FN.weather.forecast(lat, lon), FN.weather.history(lat, lon).catch(() => null)]); bite = FN.forecast.compute(weather, lat, lon, species || 'ALL', S.catches, { history }); }
       const h = bite.hours.reduce((best, x) => (Math.abs(x.t - date) < Math.abs(best.t - date) ? x : best), bite.hours[0]);
       if (Math.abs(h.t - date) <= 2 * 3600 * 1000) {
         const w = h.weather;
-        Object.assign(out, { temp: w.temp, pressure: w.pressure, wind: w.wind, windDir: w.windDir, cloud: w.cloud, code: w.code, biteScore: h.score });
+        Object.assign(out, { temp: w.temp, pressure: w.pressure, wind: w.wind, windDir: w.windDir, gust: w.gust, cloud: w.cloud, code: w.code, precip: w.precip, biteScore: h.score });
         const pr = h.details.pressure || '';
         out.pressureTrend = pr.includes('falling') ? 'falling' : pr.includes('rising') ? 'rising' : 'steady';
       }
+      // The day as a whole: high/low, sunrise/sunset, modeled water temperature
+      const day = bite.days.find(d => FN.util.sameDay(d.date, date));
+      if (day) {
+        if (day.wx) { out.dayHi = day.wx.hi; out.dayLo = day.wx.lo; out.dayCode = day.wx.code; }
+        if (day.water != null) out.waterTemp = Math.round(day.water * 10) / 10;
+        out.sunrise = day.info.sunrise.toISOString(); out.sunset = day.info.sunset.toISOString();
+        out.dayScore = day.score;
+      } else if (bite.water && bite.water.today != null) out.waterTemp = Math.round(bite.water.today * 10) / 10;
     } catch (e) { /* partial conditions are fine */ }
     return out;
   }
@@ -727,12 +742,21 @@
       case 'sheet-open': showPanel(); FN.map.getMap().invalidateSize(); break;
       case 'signout': FN.cloud.signOut().then(() => toast('Signed out')); break;
       case 'sync-now': syncAll().then(() => toast('Synced')).catch(e => toast('Sync failed: ' + e.message)); break;
-      case 'catches': S.prevView = 'home'; S.view = 'catches'; render(); if (isMobile()) setSheet('full'); break;
+      case 'catches': S.prevView = 'home'; S.catchFilter = null; S.view = 'catches'; render(); if (isMobile()) setSheet('full'); break;
+      case 'catches-at-pin': { const p = pinById(el.dataset.id); FN.map.closePopups(); S.prevView = S.view === 'catches' ? S.prevView : S.view; S.catchFilter = p ? { pinId: p.id, name: p.name } : null; S.view = 'catches'; render(); if (isMobile()) setSheet('full'); break; }
+      case 'catch-filter-clear': S.catchFilter = null; rerender(); break;
       case 'catch-new': FN.map.closePopups(); openCatchForm({ pinId: el.dataset.pinId, lat: el.dataset.lat ? Number(el.dataset.lat) : null, lon: el.dataset.lon ? Number(el.dataset.lon) : null }); break;
       case 'catch-edit': openCatchForm({ id: el.dataset.id }); break;
       case 'catch-cancel': S.catchForm = null; S.catchPhotoFile = null; S.view = S.prevView && S.prevView !== 'catch' ? S.prevView : 'home'; if (S.view === 'lake' && !S.lake) S.view = 'home'; render(); break;
       case 'catch-delete': deleteCatch(el.dataset.id); break;
-      case 'catch-open': S.openCatch = S.openCatch === el.dataset.id ? null : el.dataset.id; rerender(); break;
+      case 'catch-open': {
+        S.openCatch = S.openCatch === el.dataset.id ? null : el.dataset.id;
+        if (S.view !== 'catches') {   // tapped from a pin or lake page: open the log scoped to that spot, with this catch expanded
+          const c = S.catches.find(x => x.id === el.dataset.id); const p = c && c.pinId ? pinById(c.pinId) : null;
+          S.openCatch = el.dataset.id; S.prevView = S.view; S.catchFilter = p ? { pinId: p.id, name: p.name } : null; S.view = 'catches'; render(); if (isMobile()) setSheet('full'); break;
+        }
+        rerender(); break;
+      }
       case 'catch-species': if (S.catchForm) { S.catchForm.species = el.dataset.code; body.querySelectorAll('[data-action="catch-species"]').forEach(b => b.classList.toggle('on', b === el)); } break;
       case 'catch-photo-clear': if (S.catchForm) { S.catchForm.photoPreview = null; S.catchForm.photoPath = null; S.catchForm.photoLocal = null; S.catchPhotoFile = null; const pv = el.closest('.preview'); if (pv) pv.remove(); const inp = body.querySelector('#catch-photo'); if (inp) inp.value = ''; } break;
       case 'buddies': openBuddies(); break;
