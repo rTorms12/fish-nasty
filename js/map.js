@@ -98,6 +98,22 @@ FN.map = (() => {
     return [l];
   }
 
+  // How much of the map the bottom sheet covers on a phone (0 when the sheet is closed or on desktop)
+  function sheetCover() {
+    if (!window.matchMedia('(max-width: 899px)').matches) return 0;
+    const sheetEl = document.getElementById('sheet'), app = document.getElementById('app');
+    if (!sheetEl || (app && app.classList.contains('panel-closed'))) return 0;
+    return Math.max(0, Math.min(window.innerHeight * 0.55, window.innerHeight - sheetEl.getBoundingClientRect().top));
+  }
+  // Popup auto-pan padding so popups land clear of the search bar, the tool stack and the sheet
+  function padOpts() {
+    const mobile = window.matchMedia('(max-width: 899px)').matches;
+    const mapRect = map.getContainer().getBoundingClientRect();
+    const tb = document.querySelector('.topbar'), fabs = document.querySelector('.fabs'), app = document.getElementById('app');
+    const top = (mobile || (app && app.classList.contains('panel-closed'))) && tb ? tb.getBoundingClientRect().bottom - mapRect.top + 10 : 14;
+    const right = fabs && fabs.offsetParent ? Math.max(14, mapRect.right - fabs.getBoundingClientRect().left + 10) : 14;
+    return { tl: L.point(14, top), br: L.point(right, sheetCover() + 14) };
+  }
   function init(el) {
     // Open where the map was last left; the very first time, open on Dassel
     const saved = U.store.get(C.storageKeys.view, null);
@@ -108,6 +124,13 @@ FN.map = (() => {
       zoomSnap: 0.5, wheelDebounceTime: 60, inertiaDeceleration: 2500, fadeAnimation: false, markerZoomAnimation: false
     });
     map.attributionControl.setPrefix('');
+    // Every popup (pins, landings, depth taps) gets nudged into the part of the map that is actually visible
+    map.on('popupopen', e => {
+      const p = e.popup; if (!p || !p.options.autoPan) return;
+      const o = padOpts();
+      p.options.autoPanPaddingTopLeft = o.tl; p.options.autoPanPaddingBottomRight = o.br;
+      if (typeof p._adjustPan === 'function') p._adjustPan();
+    });
 
     const fast = { maxZoom: 19, updateWhenZooming: false, keepBuffer: 3 };
     base.sat = L.layerGroup([
@@ -249,9 +272,7 @@ FN.map = (() => {
     }).addTo(map);
     if (fit) {
       // On phones the bottom sheet covers part of the map: keep the lake in the visible part
-      const mobile = window.matchMedia('(max-width: 899px)').matches;
-      const sheetEl = document.getElementById('sheet');
-      const bottomPad = mobile && sheetEl ? Math.min(sheetEl.getBoundingClientRect().height, window.innerHeight * 0.5) : 0;
+      const bottomPad = sheetCover();
       // The first fit after page load jumps straight there (fastest, and immune to paused animation frames); later ones glide
       const animate = fitCount++ > 0;
       if (lake.bbox) {

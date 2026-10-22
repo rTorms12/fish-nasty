@@ -240,6 +240,9 @@ select { font: inherit; background: var(--panel-2); color: var(--text); border: 
   .sheet { transition: height .28s cubic-bezier(.2,.8,.2,1), transform .3s cubic-bezier(.2,.8,.2,1); }
   #app.panel-closed .sheet { transform: translateY(calc(100% + 40px)); box-shadow: none; pointer-events: none; }
   #panel-open { left: 50%; right: auto; bottom: calc(var(--sab) + 18px); transform: translateX(-50%); padding: 11px 18px 11px 14px; font-size: 15px; }
+  .fabs button { width: 52px; height: 48px; gap: 2px; }
+  .fabs button svg { width: 21px; height: 21px; }
+  .fabs button span { font-size: 9px; }
   #panel-open svg { transform: rotate(-90deg); }
   #layers-panel { left: 12px; right: 12px; width: auto; max-width: none; top: calc(var(--sat) + 64px); max-height: calc(100vh - var(--sat) - 96px); padding: 16px 18px 18px; border-radius: 20px; z-index: 1250; font-size: 16px; }   /* above the sheet, below the search bar */
   #layers-panel .panel-head { margin-bottom: 10px; }

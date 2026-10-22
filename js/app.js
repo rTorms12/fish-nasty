@@ -213,6 +213,7 @@
   function goHome() {
     S.view = 'home'; location.hash = ''; document.title = 'Fish Nasty';
     render();
+    if (isMobile() && sheet.classList.contains('full')) setSheet('half');   // home shows the map again
     if (S.favorites.length) runBestBet('favorites').catch(() => {});
   }
 
