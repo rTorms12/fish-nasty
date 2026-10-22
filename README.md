@@ -4,8 +4,8 @@ A browser-based, add-to-home-screen fishing app for Minnesota lakes. Think onX F
 
 - **Depth maps** — Minnesota DNR lake bathymetry rendered live as color-coded contour lines (0–5 ft through 100+ ft), shaded depth fill, depth labels, and a depth-range highlighter. Tap anywhere on a mapped lake to read the depth at that spot.
 - **Fish species** — the species list from DNR fisheries surveys, with game fish highlighted and a "stocked" badge.
-- **DNR surveys** — focused on walleye, northern pike and crappie: for each survey that netted them, catch per net by gear vs. the statewide normal range, how many were measured, the longest fish, the share over 20″ / 30″ / 11″, and the full length distribution. The DNR's "Status of the Fishery" write-up is one tap away.
-- **Top 20 lakes** — every surveyed lake in Minnesota (about 3,800) ranked for the biggest and the most walleye, pike and crappie, built from the DNR survey length and catch data. Trophy button in the top bar.
+- **DNR surveys** — focused on walleye, northern pike, crappie and largemouth bass: for each survey that netted them, catch per net by gear vs. the statewide normal range, how many were measured, the longest fish, the share over 20″ / 30″ / 11″, and the full length distribution. The DNR's "Status of the Fishery" write-up is one tap away.
+- **Top 20 lakes** — every surveyed lake in Minnesota (about 3,800) ranked for the biggest and the most walleye, pike, crappie and largemouth bass, built from the DNR survey length and catch data. Trophy button in the top bar.
 - **Stocking records** — year-by-year stocking table (species, size, number, pounds) with DNR footnotes.
 - **Public accesses** — boat ramps and carry-ins from the DNR access inventory, mapped, with directions.
 - **Bite forecast** — a 7-day, hour-by-hour bite score that blends solunar periods (moon overhead/underfoot, moonrise/set), moon phase, dawn/dusk, barometric trend, wind, cloud cover, precipitation, temperature swings and the season. Pick a species (walleye, pike, muskie, bass, crappie, panfish, perch, lake trout, trout, catfish…) and the weighting changes to match how that fish behaves.
@@ -18,7 +18,7 @@ A browser-based, add-to-home-screen fishing app for Minnesota lakes. Think onX F
 - **Profile** — tap your initials in the top-left corner. A fish tracker (this year or all time): fish caught, species, lakes, biggest and heaviest, days on the water, catches by species and by lake (tap to see those catches), catches by month, personal bests, recent catches, a CSV export of the whole log with the saved conditions, plus your favorite lakes, pins, buddies, backup status and account settings.
 - **Add to home screen** — a one-time card at the top of the home page the first time you are signed in on a phone: Safari steps on iPhone/iPad, an Install button on Android/Chrome when the browser offers it (otherwise Chrome and Samsung Internet menu steps). "Got it" hides it for good on that device; it never shows once the app is installed.
 - **Buddies** — invite by email, accept requests, and share pins, catches (with photos) and lake reports with each other. Shared items show up in the Buddies feed with "Show on map" and "Save to my pins".
-- **Lake finder** — every surveyed lake's walleye, pike and crappie metrics live in the database: rank by biggest or most, statewide, within a radius of you, or by county, with a minimum "longest netted" filter. The DNR data is re-scanned automatically once a month by a scheduled Supabase Edge Function.
+- **Lake finder** — every surveyed lake's walleye, pike, crappie and largemouth bass metrics live in the database: rank by biggest or most, statewide, within a radius of you, or by county, with a minimum "longest netted" filter. The DNR data is re-scanned automatically once a month by a scheduled Supabase Edge Function.
 
 **Live:** https://fishnasty.netlify.app (deploys automatically from the `main` branch of https://github.com/rTorms12/fish-nasty). Open it on your phone and use Share → Add to Home Screen.
 
@@ -98,7 +98,7 @@ Project **Fish Nasty** in the "Ryan's Apps" organization (`kmfyzjasrtpgdjcybqtr`
 | `profiles` | one row per account (display name, email); created by a trigger on sign-up |
 | `pins`, `favorites`, `catches`, `reports` | per-user data; `shared = true` rows are visible to accepted buddies |
 | `friendships` | invites and buddy links (by email; auto-linked when the invitee signs up) |
-| `lakes`, `lake_species_metrics` | all 3,800+ surveyed lakes and their walleye / pike / crappie size and catch-rate metrics (public read) |
+| `lakes`, `lake_species_metrics` | all 3,800+ surveyed lakes and their walleye / pike / crappie / largemouth bass size and catch-rate metrics (public read) |
 | `refresh_jobs`, `refresh_queue` | progress of the monthly DNR re-scan |
 
 Photos live in the private `catch-photos` storage bucket (`{user id}/{catch id}.jpg`, resized to 1280 px on the phone before upload).
@@ -119,8 +119,8 @@ python3 tools/build_rankings.py
 
 It lists every lake with a survey (87 county queries), fetches each lake's survey JSON (about 3,800 requests, 3–5 minutes), keeps surveys from the last 12 years, and ranks:
 
-- **Biggest fish** — share of netted fish at or above 20″ (walleye), 30″ (pike), 11″ (crappie) across the two most recent surveys with length data; at least 40 / 25 / 40 fish measured; lakes over 50 acres.
-- **Most fish** — catch per net in the most recent survey using standard gill nets (walleye, pike) or standard trap nets (crappie); at least 2 nets; lakes over 50 acres.
+- **Biggest fish** — share of netted fish at or above 20″ (walleye), 30″ (pike), 11″ (crappie), 15″ (largemouth bass) across the two most recent surveys with length data; at least 40 / 25 / 40 fish measured; lakes over 50 acres.
+- **Most fish** — catch per net in the most recent survey using standard gill nets (walleye, pike) or standard trap nets (crappie), or fish per hour of standard electrofishing (largemouth bass); at least 2 nets; lakes over 50 acres.
 
 A normal run refetches every lake so new surveys are included. If a run gets interrupted, `--resume` continues it; `--quick` only re-ranks the previous run's cached metrics without fetching.
 

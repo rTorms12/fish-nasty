@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Build data/rankings.json — the Top 20 lakes for big fish and lots of fish
-(walleye, northern pike, crappie) from Minnesota DNR LakeFinder survey data.
+(walleye, northern pike, crappie, largemouth bass) from Minnesota DNR LakeFinder survey data.
 
 Run:  python3 tools/build_rankings.py           (full refresh, about 3-5 minutes)
       python3 tools/build_rankings.py --resume  (continue an interrupted run)
@@ -28,6 +28,8 @@ SPECIES = {
     'WAE': {'name': 'Walleye',       'codes': ['WAE'],                      'big': 20, 'trophy': 25, 'minN': 40, 'gear': ['Standard gill nets', 'Standard gill net sets']},
     'NOP': {'name': 'Northern pike', 'codes': ['NOP', 'SIP'],               'big': 30, 'trophy': 36, 'minN': 25, 'gear': ['Standard gill nets', 'Standard gill net sets']},
     'BLC': {'name': 'Crappie',       'codes': ['BLC', 'WHC', 'CRP', 'HCR'], 'big': 11, 'trophy': 13, 'minN': 40, 'gear': ['Standard trap nets', 'Standard trap net sets', 'Standard gill nets']},
+    # Bass are sampled by spring electrofishing (fish per hour), which is the only gear that compares fairly between lakes
+    'LMB': {'name': 'Largemouth bass', 'codes': ['LMB'],                   'big': 15, 'trophy': 18, 'minN': 25, 'gear': ['Standard electrofishing']},
 }
 STANDARD_TYPES = ('Standard Survey', 'Population Assessment', 'Re-Survey', 'Large Lake Survey', 'Targeted Survey', 'Special Assessment', 'Initial Survey')
 

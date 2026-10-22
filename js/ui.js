@@ -23,7 +23,7 @@ FN.ui = (() => {
 
   const ratingBadge = r => `<span class="badge ${r.cls}">${r.word}</span>`;
   // Realistic species artwork (img/species/*.jpg) with the emoji as a fallback until the image loads
-  const SPECIES_IMG = { WAE: 'walleye', SAR: 'walleye', WAS: 'walleye', NOP: 'northern-pike', SIP: 'northern-pike', BLC: 'crappie', WHC: 'crappie', CRP: 'crappie', HCR: 'crappie' };
+  const SPECIES_IMG = { WAE: 'walleye', SAR: 'walleye', WAS: 'walleye', NOP: 'northern-pike', SIP: 'northern-pike', BLC: 'crappie', WHC: 'crappie', CRP: 'crappie', HCR: 'crappie', LMB: 'largemouth-bass' };
   const speciesIcon = (code, size = 'sm') => {
     const p = FN.profileFor(code);
     const emoji = p ? p.icon : '';
@@ -77,7 +77,7 @@ FN.ui = (() => {
     }
 
     parts.push(bestBetCard(S));
-    parts.push(`<button class="card link top-link" data-action="top"><div class="row"><div class="trophy">🏆</div><div class="grow"><div class="big">Lake finder · Top 20</div><div class="muted small">Biggest and most walleye, pike and crappie — statewide, near you, or by county — from every DNR survey</div></div><div class="chev">›</div></div></button>`);
+    parts.push(`<button class="card link top-link" data-action="top"><div class="row"><div class="trophy">🏆</div><div class="grow"><div class="big">Lake finder · Top 20</div><div class="muted small">Biggest and most walleye, pike, crappie and bass — statewide, near you, or by county — from every DNR survey</div></div><div class="chev">›</div></div></button>`);
     if (S.user) {
       const pending = (S.buddies && S.buddies.friendships || []).filter(f => f.status === 'pending' && f.addressee_id === S.user.id).length;
       parts.push(`<div class="card account"><button class="row link-row" data-action="profile"><div class="avatar">${esc(FN.ui.initials(S) || '?')}</div><div class="grow"><div class="big">${esc((S.profile && S.profile.display_name) || S.user.email)}</div><div class="muted small">${S.syncing ? 'Syncing…' : S.lastSync ? 'Synced ' + U.fmtTime(S.lastSync) : 'Signed in'} · ${S.catches.length} catch${S.catches.length === 1 ? '' : 'es'} · ${S.favorites.length} favorite${S.favorites.length === 1 ? '' : 's'} · ${S.pins.length} pin${S.pins.length === 1 ? '' : 's'}</div></div><div class="chev">›</div></button>
@@ -109,7 +109,7 @@ FN.ui = (() => {
     const days = (B.days || []).map(d => d.toLocaleDateString('en-US', { weekday: 'short' }));
     const dates = (B.days || []).map(d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })).join(' & ');
     const sp = B.species || 'WAE';
-    const chips = ['ALL', 'WAE', 'NOP', 'BLC'].map(c => { const p = c === 'ALL' ? FN.PROFILES.ALL : FN.profileFor(c); return `<button class="chip sel pic ${sp === c ? 'on' : ''}" data-action="bestbet-species" data-code="${c}">${c === 'ALL' ? p.icon : speciesIcon(c, 'sm')} ${esc(p.name)}</button>`; }).join('');
+    const chips = ['ALL', 'WAE', 'NOP', 'BLC', 'LMB'].map(c => { const p = c === 'ALL' ? FN.PROFILES.ALL : FN.profileFor(c); return `<button class="chip sel pic ${sp === c ? 'on' : ''}" data-action="bestbet-species" data-code="${c}">${c === 'ALL' ? p.icon : speciesIcon(c, 'sm')} ${esc(p.name)}</button>`; }).join('');
     const items = B.items || [];
     const shown = B.expanded ? items : items.slice(0, 5);
     const list = shown.map((it, i) => `<button class="toprow bb" data-action="open-lake" data-id="${esc(it.id)}"><div class="rank">${i + 1}</div><div class="grow"><div class="t">${esc(it.name)} <span class="muted small">${esc(it.county || '')}${it.county ? ' Co.' : ''}${it.dist != null ? ` · ${Math.round(it.dist)} mi` : ''}</span></div><div class="s">${it.scores.map(s => `<span class="dayscore"><em>${s.day}</em> <b class="${s.rating.cls}">${s.score}</b> ${s.window ? `<span class="muted">${esc(s.window)}</span>` : ''}</span>`).join(' ')}${it.metric ? `<div class="muted small">${esc(it.metric)}</div>` : ''}</div></div><div class="chev">›</div></button>`).join('');
@@ -191,12 +191,12 @@ FN.ui = (() => {
       parts.push(`<div class="chips">${sp.map(n => { const code = FN.speciesCode(n); const game = code && FN.isGameFish(code); const prof = code && FN.profileFor(code); return `<span class="chip pic ${game ? 'game' : ''}">${code ? speciesIcon(code, 'sm') + ' ' : ''}${esc(U.titleCase(n))}${stockedCodes.has(code) ? ' <em title="stocked in the last 6 years">stocked</em>' : ''}</span>`; }).join('')}</div>`);
     } else parts.push(`<p class="muted">No species list published for this lake.</p>`);
 
-    // Where to look: walleye, pike and crappie, for the current season (spring / summer / fall / ice)
+    // Where to look: walleye, pike, crappie and largemouth bass, for the current season (spring / summer / fall / ice)
     const season = FN.seasonOf(new Date());
     const present = new Set(sp.map(FN.speciesCode).filter(Boolean).map(c => (FN.profileFor(c) || {}).name));
-    const trio = ['WAE', 'NOP', 'BLC'].map(FN.profileFor).filter(p => !sp.length || present.has(p.name));
+    const trio = ['WAE', 'NOP', 'BLC', 'LMB'].map(FN.profileFor).filter(p => !sp.length || present.has(p.name));
     const seasonTitle = season === 'winter' ? 'Where to look through the ice' : `Where to look this ${season}`;
-    if (trio.length) parts.push(`<h2>${seasonTitle}</h2><div class="list tight">${trio.map(p => `<div class="krow"><div class="k">${speciesIcon(p.code || ['WAE', 'NOP', 'BLC'].find(c => FN.profileFor(c).name === p.name), 'md')} <span>${esc(p.name)}</span></div><div class="v">${esc(p.depth[season])}</div></div>`).join('')}</div><p class="muted small">Changes with the season: spring (ice-out to May), summer, fall, and ice (December–March).</p>`);
+    if (trio.length) parts.push(`<h2>${seasonTitle}</h2><div class="list tight">${trio.map(p => `<div class="krow"><div class="k">${speciesIcon(p.code || ['WAE', 'NOP', 'BLC', 'LMB'].find(c => FN.profileFor(c).name === p.name), 'md')} <span>${esc(p.name)}</span></div><div class="v">${esc(p.depth[season])}</div></div>`).join('')}</div><p class="muted small">Changes with the season: spring (ice-out to May), summer, fall, and ice (December–March).</p>`);
 
     const lakePins = (S.pins || []).filter(p => pinOnLake(p, L));
     if (lakePins.length) parts.push(`<h2>My pins on this lake</h2><div class="list">${lakePins.map(pinRow).join('')}</div>`);
@@ -226,7 +226,8 @@ FN.ui = (() => {
   const TARGETS = [
     { key: 'WAE', name: 'Walleye', codes: ['WAE'], big: 20, trophy: 25, gear: ['Standard gill nets', 'Standard gill net sets'] },
     { key: 'NOP', name: 'Northern pike', codes: ['NOP', 'SIP'], big: 30, trophy: 36, gear: ['Standard gill nets', 'Standard gill net sets'] },
-    { key: 'BLC', name: 'Crappie', codes: ['BLC', 'WHC', 'CRP', 'HCR'], big: 11, trophy: 13, gear: ['Standard trap nets', 'Standard trap net sets', 'Standard gill nets'] }
+    { key: 'BLC', name: 'Crappie', codes: ['BLC', 'WHC', 'CRP', 'HCR'], big: 11, trophy: 13, gear: ['Standard trap nets', 'Standard trap net sets', 'Standard gill nets'] },
+    { key: 'LMB', name: 'Largemouth bass', codes: ['LMB'], big: 15, trophy: 18, gear: ['Standard electrofishing', 'Standard trap nets', 'Standard trap net sets', 'Standard gill nets'], trendGear: ['Standard electrofishing'], unit: 'Per hour' }
   ];
   // One row per survey year: catch per net in the standard gear, and the share of big fish measured
   function trendRows(surveys, t) {
@@ -234,7 +235,7 @@ FN.ui = (() => {
     for (const sv of surveys) {
       const yr = parseInt(String(sv.date).slice(0, 4)); if (!yr) continue;
       let cpue = null, gear = null;
-      for (const g of t.gear) { const c = sv.catches.find(x => t.codes.includes(x.species) && x.gear === g); if (c) { cpue = c.cpue; gear = g; break; } }
+      for (const g of (t.trendGear || t.gear)) { const c = sv.catches.find(x => t.codes.includes(x.species) && x.gear === g); if (c) { cpue = c.cpue; gear = g; break; } }
       const len = mergeLengths(sv.lengths, t.codes);
       let n = 0, pctBig = null, max = null;
       if (len) { n = len.fishCount.reduce((a, [, c]) => a + c, 0); const nb = len.fishCount.reduce((a, [inch, c]) => a + (inch >= t.big ? c : 0), 0); pctBig = n ? Math.round(100 * nb / n) : null; max = len.maximum_length; }
@@ -264,7 +265,7 @@ FN.ui = (() => {
     for (const t of TARGETS) {
       const rows = trendRows(D.surveys, t);
       if (rows.length < 2) continue;
-      const c1 = miniBars(rows, 'cpue', v => U.num(v, 1), '#5aa9f0', 'Per net');
+      const c1 = miniBars(rows, 'cpue', v => U.num(v, 1), '#5aa9f0', t.unit || 'Per net');
       const c2 = miniBars(rows, 'pctBig', v => v + '%', '#ffb454', `${t.big}″ or longer`);
       if (!c1 && !c2) continue;
       const first = rows[0], last = rows[rows.length - 1];
@@ -272,9 +273,9 @@ FN.ui = (() => {
       const sizeV = (first.pctBig != null && last.pctBig != null) ? (last.pctBig > first.pctBig + 5 ? 'more big fish' : last.pctBig < first.pctBig - 5 ? 'fewer big fish' : 'size steady') : '';
       blocks.push(`<div class="sp-block trends"><div class="sp-head">${speciesIcon(t.key, 'md')}<h2>${esc(t.name)} trend <span class="muted small">${rows[0].yr}–${last.yr}${verdict ? ' · ' + verdict : ''}${sizeV ? ' · ' + sizeV : ''}</span></h2></div><div class="trend-grid">${c1}${c2}</div></div>`);
     }
-    return blocks.length ? `<h2>Across surveys</h2>${blocks.join('')}<p class="muted small">Per net is catch per unit effort in the standard gear (gill nets for walleye and pike, trap nets for crappie). Bars are survey years.</p>` : '';
+    return blocks.length ? `<h2>Across surveys</h2>${blocks.join('')}<p class="muted small">Per net is catch per unit effort in the standard gear (gill nets for walleye and pike, trap nets for crappie); bass are counted per hour of spring electrofishing. Bars are survey years.</p>` : '';
   }
-  const gearShort = g => String(g || '').replace('Standard ', '').replace(' sets', '').replace('gill nets', 'gill net').replace('trap nets', 'trap net').replace('electrofishing', 'electrofishing run');
+  const gearShort = g => String(g || '').replace('Standard ', '').replace(' sets', '').replace('gill nets', 'gill net').replace('trap nets', 'trap net').replace('electrofishing', 'electrofishing (per hour)');
   function mergeLengths(lengths, codes) {
     const counts = new Map();
     for (const c of codes) {
@@ -294,7 +295,7 @@ FN.ui = (() => {
     if (S.errors.detail) return errorBox(S.errors.detail);
     if (!D || !D.surveys.length) return `<p class="muted">The DNR has not published a fisheries survey for this lake.</p>`;
     const list = D.surveys.filter(surveyHasTarget);
-    if (!list.length) return `<p class="muted">The DNR surveys for this lake did not net any walleye, northern pike or crappie.</p>`;
+    if (!list.length) return `<p class="muted">The DNR surveys for this lake did not turn up any walleye, northern pike, crappie or largemouth bass.</p>`;
     const idx = Math.min(S.surveyIdx || 0, list.length - 1);
     const sv = list[idx];
     const parts = [];
@@ -309,7 +310,7 @@ FN.ui = (() => {
       const block = [];
       block.push(`<div class="sp-head">${speciesIcon(t.key, 'lg')}<h2>${esc(t.name)}</h2></div>`);
       if (catches.length) {
-        block.push(`<table class="tbl"><thead><tr><th>Gear</th><th class="n">Per net</th><th class="n">Normal</th><th class="n">Caught</th><th class="n">Avg lb</th></tr></thead><tbody>${catches.map(c => `<tr><td>${esc(gearShort(c.gear))} <span class="muted">×${U.num(c.gearCount, 1)}</span></td><td class="n"><strong>${U.num(c.cpue, 2)}</strong> ${rangeFlag(c.cpue, c.normalCount)}</td><td class="n muted">${esc(c.normalCount || '—')}</td><td class="n">${U.num(c.totalCatch)}</td><td class="n">${c.avgWeight ? U.num(c.avgWeight, 2) : '—'}</td></tr>`).join('')}</tbody></table>`);
+        block.push(`<table class="tbl"><thead><tr><th>Gear</th><th class="n">Per net / hr</th><th class="n">Normal</th><th class="n">Caught</th><th class="n">Avg lb</th></tr></thead><tbody>${catches.map(c => `<tr><td>${esc(gearShort(c.gear))} <span class="muted">×${U.num(c.gearCount, 1)}</span></td><td class="n"><strong>${U.num(c.cpue, 2)}</strong> ${rangeFlag(c.cpue, c.normalCount)}</td><td class="n muted">${esc(c.normalCount || '—')}</td><td class="n">${U.num(c.totalCatch)}</td><td class="n">${c.avgWeight ? U.num(c.avgWeight, 2) : '—'}</td></tr>`).join('')}</tbody></table>`);
       }
       if (len) {
         const n = len.fishCount.reduce((a, [, c]) => a + c, 0);
@@ -377,19 +378,19 @@ FN.ui = (() => {
     if (!R) return head + errorBox(S.errors.rankings || 'Rankings are not built yet. Run tools/build_rankings.py to create data/rankings.json.');
     const code = R.species[S.topSpecies] ? S.topSpecies : 'WAE';
     const sp = R.species[code];
-    const chips = ['WAE', 'NOP', 'BLC'].filter(c => R.species[c]).map(c => `<button class="chip sel pic ${code === c ? 'on' : ''}" data-action="top-species" data-code="${c}">${speciesIcon(c, 'sm')} ${esc(R.species[c].name)}</button>`).join('');
+    const chips = ['WAE', 'NOP', 'BLC', 'LMB'].filter(c => R.species[c]).map(c => `<button class="chip sel pic ${code === c ? 'on' : ''}" data-action="top-species" data-code="${c}">${speciesIcon(c, 'sm')} ${esc(R.species[c].name)}</button>`).join('');
     const mode = S.topMode === 'many' ? 'many' : 'big';
     const seg = `<div class="seg"><button class="${mode === 'big' ? 'on' : ''}" data-action="top-mode" data-mode="big">🏆 Biggest fish</button><button class="${mode === 'many' ? 'on' : ''}" data-action="top-mode" data-mode="many">🎣 Most fish</button></div>`;
     const list = mode === 'big' ? sp.bigLakes : sp.manyLakes;
     const rows = list.map((l, i) => {
       const metric = mode === 'big'
         ? `<b>${l.pctBig}%</b> of ${U.num(l.n)} netted fish were ${sp.big}″+ · longest ${l.max}″${l.nTrophy ? ` · ${l.nTrophy} over ${sp.trophy}″` : ''} · ${(l.years || []).join(', ')}`
-        : `<b>${U.num(l.cpue, 1)}</b> per ${esc(gearShort(l.gear))} · ${U.num(l.catch)} caught in ${l.nets} nets · ${l.year}${l.normal && l.normal !== 'N/A' ? ` · normal ${esc(l.normal)}` : ''}`;
+        : /electrofishing/i.test(l.gear || '') ? `<b>${U.num(l.cpue, 1)}</b> per hour of electrofishing · ${U.num(l.catch)} caught in ${U.num(l.nets, 1)} h · ${l.year}` : `<b>${U.num(l.cpue, 1)}</b> per ${esc(gearShort(l.gear))} · ${U.num(l.catch)} caught in ${l.nets} nets · ${l.year}${l.normal && l.normal !== 'N/A' ? ` · normal ${esc(l.normal)}` : ''}`;
       return `<button class="toprow" data-action="open-lake" data-id="${esc(l.id)}"><div class="rank">${i + 1}</div><div class="grow"><div class="t">${esc(l.name)} <span class="muted small">${esc(l.county)} Co. · ${U.num(l.acres)} ac</span></div><div class="s">${metric}</div></div><div class="chev">›</div></button>`;
     }).join('');
     const note = mode === 'big'
       ? `<p class="muted small">Ranked by the share of netted ${sp.name.toLowerCase()} measuring ${sp.big}″ or longer in the lake's two most recent surveys with length data (at least ${sp.minN} fish measured, lakes over 50 acres, ${U.num(sp.eligibleBig)} lakes qualified). “Longest” is the biggest fish the DNR measured.</p>`
-      : `<p class="muted small">Ranked by catch per net in the most recent survey (${esc(sp.gearNote)} where available, at least 2 nets, lakes over 50 acres, ${U.num(sp.eligibleMany)} lakes qualified). “Normal” is the statewide 25th–75th percentile for similar lakes.</p>`;
+      : `<p class="muted small">Ranked by catch per net${sp.gearNote && /electro/i.test(sp.gearNote) ? ' (per hour for electrofishing)' : ''} in the most recent survey (${esc(sp.gearNote)} where available, at least 2 nets, lakes over 50 acres, ${U.num(sp.eligibleMany)} lakes qualified). “Normal” is the statewide 25th–75th percentile for similar lakes.</p>`;
     return head + `<div class="chips scroll">${chips}</div>` + seg + (rows ? `<div class="list">${rows}</div>` : `<p class="muted">No lakes qualified.</p>`) + note + `<p class="muted small">Built ${esc(R.built)} from Minnesota DNR LakeFinder survey data. Nets sample a lake on one day, so treat these as strong leads, not guarantees.</p>`;
   }
 

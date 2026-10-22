@@ -190,8 +190,8 @@ Object.assign(FN.ui, (() => {
   }
 
   /* ---------------- LAKE FINDER ---------------- */
-  const MIN_N = { WAE: 40, NOP: 25, BLC: 40 }, BIG = { WAE: 20, NOP: 30, BLC: 11 }, TROPHY = { WAE: 25, NOP: 36, BLC: 13 };
-  const MINLEN = { WAE: [0, 24, 26, 28, 30], NOP: [0, 36, 40, 44], BLC: [0, 12, 13, 14, 15] };
+  const MIN_N = { WAE: 40, NOP: 25, BLC: 40, LMB: 25 }, BIG = { WAE: 20, NOP: 30, BLC: 11, LMB: 15 }, TROPHY = { WAE: 25, NOP: 36, BLC: 13, LMB: 18 };
+  const MINLEN = { WAE: [0, 24, 26, 28, 30], NOP: [0, 36, 40, 44], BLC: [0, 12, 13, 14, 15], LMB: [0, 16, 17, 18, 20] };
   const miles = m => m / 1609.344;
   const dist = (a, b) => { const R = 6371000, dLat = (b.lat - a.lat) * Math.PI / 180, dLon = (b.lon - a.lon) * Math.PI / 180; const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLon / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); };
 
@@ -199,7 +199,7 @@ Object.assign(FN.ui, (() => {
     const F = S.finder, sp = F.species, mode = F.mode;
     const M = S.lakeMetrics;
     let rows, source;
-    if (M && M.rows) { rows = M.rows.filter(r => r.species === sp && (r.acres || 0) >= 50); source = 'live'; }
+    if (M && M.rows && M.rows.some(r => r.species === sp)) { rows = M.rows.filter(r => r.species === sp && (r.acres || 0) >= 50); source = 'live'; }
     else if (S.rankings && S.rankings.species[sp]) { rows = (mode === 'big' ? S.rankings.species[sp].bigLakes : S.rankings.species[sp].manyLakes).map(r => ({ ...r })); source = 'static'; }
     else return { rows: [], source: 'none' };
     rows = rows.filter(r => mode === 'big' ? (r.n || 0) >= MIN_N[sp] && (!F.minLen || (r.max || 0) >= F.minLen) : (r.nets || 0) >= 2 && (r.cpue || 0) > 0);
@@ -217,7 +217,7 @@ Object.assign(FN.ui, (() => {
     const sub = M ? `${U.num(M.lakes)} surveyed lakes · DNR data refreshed ${new Date(M.updated).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : (S.rankings ? `Top 20 only (offline copy built ${esc(S.rankings.built)})` : 'From DNR fisheries surveys');
     const parts = [head('Lake finder', sub)];
     if (S.loading.metrics) parts.push(spinner('Loading statewide survey data…'));
-    parts.push(`<div class="chips scroll">${['WAE', 'NOP', 'BLC'].map(c => `<button class="chip sel pic ${sp === c ? 'on' : ''}" data-action="finder-species" data-code="${c}">${speciesIcon(c, 'sm')} ${esc(FN.profileFor(c).name)}</button>`).join('')}</div>`);
+    parts.push(`<div class="chips scroll">${['WAE', 'NOP', 'BLC', 'LMB'].map(c => `<button class="chip sel pic ${sp === c ? 'on' : ''}" data-action="finder-species" data-code="${c}">${speciesIcon(c, 'sm')} ${esc(FN.profileFor(c).name)}</button>`).join('')}</div>`);
     parts.push(`<div class="seg"><button class="${mode === 'big' ? 'on' : ''}" data-action="finder-mode" data-mode="big">🏆 Biggest fish</button><button class="${mode === 'many' ? 'on' : ''}" data-action="finder-mode" data-mode="many">🎣 Most fish</button></div>`);
     parts.push(`<div class="seg">${[['state', 'Statewide'], ['near', 'Near me'], ['county', 'County']].map(([k, n]) => `<button class="${F.scope === k ? 'on' : ''}" data-action="finder-scope" data-scope="${k}" ${k !== 'state' && source === 'static' ? 'disabled title="needs the live data"' : ''}>${n}</button>`).join('')}</div>`);
     const filters = [];
@@ -228,7 +228,8 @@ Object.assign(FN.ui, (() => {
     const shown = rows.slice(0, F.limit);
     if (F.scope === 'near' && !S.location) parts.push(`<p class="muted small">Tap “Use my location” to rank lakes around you.</p>`);
     else if (!rows.length) parts.push(`<p class="muted">No lakes match. Try a wider radius, a different county, or a smaller minimum size.</p>`);
-    parts.push(`<div class="list">${shown.map((l, i) => { const metric = mode === 'big' ? `<b>${l.pctBig}%</b> of ${U.num(l.n)} netted were ${BIG[sp]}″+ · longest ${l.max}″${l.nTrophy ? ` · ${l.nTrophy} over ${TROPHY[sp]}″` : ''} · ${(l.years || []).join(', ')}` : `<b>${U.num(l.cpue, 1)}</b> per ${esc(gearShort(l.gear))} · ${U.num(l.catch)} caught in ${l.nets} nets · ${l.year}${l.normal && l.normal !== 'N/A' ? ` · normal ${esc(l.normal)}` : ''}`; return `<button class="toprow" data-action="open-lake" data-id="${esc(l.id)}"><div class="rank">${i + 1}</div><div class="grow"><div class="t">${esc(l.name)} <span class="muted small">${esc(l.county || '')} Co. · ${U.num(l.acres)} ac${l.dist != null ? ` · ${Math.round(miles(l.dist))} mi` : ''}</span></div><div class="s">${metric}</div></div><div class="chev">›</div></button>`; }).join('')}</div>`);
+    const ef = l => /electrofishing/i.test(l.gear || '');
+    parts.push(`<div class="list">${shown.map((l, i) => { const metric = mode === 'big' ? `<b>${l.pctBig}%</b> of ${U.num(l.n)} ${sp === 'LMB' ? 'sampled' : 'netted'} were ${BIG[sp]}″+ · longest ${l.max}″${l.nTrophy ? ` · ${l.nTrophy} over ${TROPHY[sp]}″` : ''} · ${(l.years || []).join(', ')}` : ef(l) ? `<b>${U.num(l.cpue, 1)}</b> per hour of electrofishing · ${U.num(l.catch)} caught in ${U.num(l.nets, 1)} h · ${l.year}` : `<b>${U.num(l.cpue, 1)}</b> per ${esc(gearShort(l.gear))} · ${U.num(l.catch)} caught in ${l.nets} nets · ${l.year}${l.normal && l.normal !== 'N/A' ? ` · normal ${esc(l.normal)}` : ''}`; return `<button class="toprow" data-action="open-lake" data-id="${esc(l.id)}"><div class="rank">${i + 1}</div><div class="grow"><div class="t">${esc(l.name)} <span class="muted small">${esc(l.county || '')} Co. · ${U.num(l.acres)} ac${l.dist != null ? ` · ${Math.round(miles(l.dist))} mi` : ''}</span></div><div class="s">${metric}</div></div><div class="chev">›</div></button>`; }).join('')}</div>`);
     if (rows.length > shown.length) parts.push(`<div class="actions"><button class="btn ghost" data-action="finder-more">Show ${Math.min(20, rows.length - shown.length)} more of ${U.num(rows.length)}</button></div>`);
     parts.push(mode === 'big'
       ? `<p class="muted small">Ranked by the share of netted ${esc(p.name.toLowerCase())} measuring ${BIG[sp]}″ or longer in each lake's two most recent surveys with length data (at least ${MIN_N[sp]} fish measured, lakes over 50 acres).</p>`

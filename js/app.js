@@ -284,7 +284,7 @@
       const sp = BB.species === 'ALL' ? 'WAE' : BB.species;
       // Candidates: lakes within 50 miles with a real sample behind their numbers, ranked by size of fish,
       // catch rate and lake size so tiny ponds with four netted fish don't float to the top
-      const minN = { WAE: 30, NOP: 20, BLC: 30 }[sp] || 30;
+      const minN = { WAE: 30, NOP: 20, BLC: 30, LMB: 20 }[sp] || 30;
       const near = metrics.rows
         .filter(r => r.species === sp && r.lat != null && (r.acres || 0) >= 200 && ((r.n || 0) >= minN || ((r.cpue || 0) >= 3 && (r.nets || 0) >= 3)))
         .map(r => ({ ...r, dist: milesBetween(here, r) })).filter(r => r.dist <= 50);
@@ -299,9 +299,9 @@
     const m = S.lakeMetrics && S.lakeMetrics.rows.find(r => r.id === id && r.species === sp);
     if (!m) return '';
     const name = (FN.profileFor(sp) || {}).name || sp;
-    const big = { WAE: 20, NOP: 30, BLC: 11 }[sp];
+    const big = { WAE: 20, NOP: 30, BLC: 11, LMB: 15 }[sp];
     const parts = [];
-    if (m.n) parts.push(`${m.pctBig}% of ${U.num(m.n)} netted ${name.toLowerCase()} were ${big}″+, longest ${m.max}″`);
+    if (m.n) parts.push(`${m.pctBig}% of ${U.num(m.n)} ${sp === 'LMB' ? 'sampled' : 'netted'} ${name.toLowerCase()} were ${big}″+, longest ${m.max}″`);
     if (m.cpue) parts.push(`${U.num(m.cpue, 1)} per net (${m.year})`);
     return parts.join(' · ');
   }
@@ -534,7 +534,7 @@
     const existing = opts.id ? S.catches.find(c => c.id === opts.id) : null;
     if (S.view !== 'catch') S.prevView = S.view;
     S.catchForm = existing ? Object.assign({}, existing) : {
-      id: null, species: (lake && ['WAE', 'NOP', 'BLC'].find(c => lake.speciesCodes.includes(c))) || 'WAE',
+      id: null, species: (lake && ['WAE', 'NOP', 'BLC', 'LMB'].find(c => lake.speciesCodes.includes(c))) || 'WAE',
       lakeId: pin ? (pin.lakeId || (lake && lake.id) || null) : (lake ? lake.id : null),
       lakeName: pin ? (pin.lakeName || (lake && lake.name) || null) : (lake ? lake.name : null),
       pinId: pin ? pin.id : null, pinServerId: pin ? pin.serverId || null : null, pinName: pin ? pin.name : null,
