@@ -281,6 +281,17 @@ FN.ui = (() => {
     return `<div class="chart"><svg viewBox="0 0 ${W} ${H}" class="len-chart" role="img" aria-label="Length distribution"><line x1="${padL}" y1="${H - padB}" x2="${W - 8}" y2="${H - padB}" class="axis"/><text x="${padL - 4}" y="${padT + 8}" text-anchor="end" class="axis-l">${maxN}</text><text x="${padL - 4}" y="${H - padB}" text-anchor="end" class="axis-l">0</text>${svg}</svg><div class="muted small">${total} fish measured · ${min}–${max} in</div></div>`;
   }
 
+  /* ---------------- QUICK BITE FORECAST (map tool button) ---------------- */
+  function quickForecast(S) {
+    const Q = S.quick || {};
+    const where = Q.source === 'gps' ? 'Your location' : Q.near ? `Near ${esc(Q.near)}` : 'Where the map is centered';
+    const sub = Q.lat != null ? `${where} · ${Q.lat.toFixed(3)}, ${Q.lon.toFixed(3)}` : '';
+    const parts = [`<div class="lake-head"><button class="icon-btn" data-action="home" title="Home">${ICON.back}</button><div class="grow"><h1>Bite forecast</h1><div class="s">${sub}</div></div></div>`];
+    parts.push(`<div class="actions quick-src"><button class="btn small ${Q.source === 'center' ? '' : 'ghost'}" data-action="quick-center">Map center</button><button class="btn small ${Q.source === 'gps' ? '' : 'ghost'}" data-action="quick-gps">${ICON.locate} My location</button>${Q.near && Q.nearDow ? `<button class="btn small ghost" data-action="open-lake" data-id="${esc(Q.nearDow)}">Open ${esc(Q.near)}</button>` : ''}</div>`);
+    parts.push(forecast(S, { weather: Q.weather, bite: Q.bite, codes: Q.codes || ['WAE', 'NOP', 'BLC', 'MUE', 'LMB', 'SMB', 'BLG', 'YEP', 'LAT'], loading: Q.loading, error: Q.error }));
+    return parts.join('');
+  }
+
   /* ---------------- TOP 20 LAKES ---------------- */
   function top(S) {
     const R = S.rankings;
@@ -324,14 +335,15 @@ FN.ui = (() => {
   }
 
   /* ---------------- FORECAST ---------------- */
-  function forecast(S) {
-    if (S.loading.weather) return spinner('Fetching weather, moon and sun data…');
-    if (S.errors.weather) return errorBox(S.errors.weather);
-    const B = S.bite, W = S.weather;
+  function forecast(S, ctx) {
+    ctx = ctx || { weather: S.weather, bite: S.bite, codes: S.lake ? S.lake.speciesCodes : [], loading: S.loading.weather, error: S.errors.weather };
+    if (ctx.loading) return spinner('Fetching weather, moon and sun data…');
+    if (ctx.error) return errorBox(ctx.error);
+    const B = ctx.bite, W = ctx.weather;
     if (!B || !W) return `<p class="muted">Forecast unavailable.</p>`;
     const parts = [];
     // species chips
-    const present = new Set(S.lake.speciesCodes);
+    const present = new Set(ctx.codes || []);
     const codes = ['ALL', ...FN.PROFILE_ORDER.filter(c => present.has(c))];
     const seen = new Set();
     parts.push(`<div class="chips scroll">${codes.map(c => { const p = c === 'ALL' ? FN.PROFILES.ALL : FN.profileFor(c); if (!p || seen.has(p.name)) return ''; seen.add(p.name); return `<button class="chip sel pic ${S.species === c ? 'on' : ''}" data-action="species" data-code="${c}">${c === 'ALL' ? p.icon : speciesIcon(c, 'sm')} ${esc(p.name)}</button>`; }).join('')}</div>`);
@@ -496,5 +508,5 @@ FN.ui = (() => {
     return `<div class="depth-popup">${html}</div>`;
   };
 
-  return { ICON, home, lake, top, searchResults, layersPanel, legend, depthPopup, spinner, errorBox, ratingBadge, scoreRing, pinPopup, pinEditor, pinMenu, speciesIcon, gearShort, lakeRow, pinRow, windowText };
+  return { ICON, home, lake, top, quickForecast, searchResults, layersPanel, legend, depthPopup, spinner, errorBox, ratingBadge, scoreRing, pinPopup, pinEditor, pinMenu, speciesIcon, gearShort, lakeRow, pinRow, windowText };
 })();

@@ -384,6 +384,8 @@ input[type="file"]::file-selector-button { font: inherit; background: var(--pane
 .fabs button:active, .fabs button.on { background: rgba(88,209,255,.16); }
 .fabs button.on span { color: var(--accent); }
 #fab-pin svg { color: var(--accent-2); }
+#fab-forecast svg { color: var(--r4); }
+.quick-src { margin: 4px 0 10px; }
 #fab-locate svg { color: var(--accent); }
 .zoomctl { display: none; position: absolute; right: 16px; bottom: 28px; flex-direction: column; z-index: 900; background: rgba(13,30,46,.97); border-radius: 12px; padding: 3px; box-shadow: 0 6px 18px rgba(0,0,0,.4); }
 .zoomctl button { width: 40px; height: 38px; border: 0; background: transparent; color: var(--text); border-radius: 9px; display: flex; align-items: center; justify-content: center; }

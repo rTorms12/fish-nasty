@@ -28,6 +28,7 @@
     const pinToEdit = S.view === 'pin' ? S.pins.find(p => p.id === S.editPin) : null;
     body.innerHTML = pinToEdit ? FN.ui.pinEditor(Object.assign({}, pinToEdit, S.editColor ? { color: S.editColor } : {}))
       : S.view === 'top' ? FN.ui.finder(S)
+      : S.view === 'quick' ? FN.ui.quickForecast(S)
       : S.view === 'account' ? FN.ui.account(S)
       : S.view === 'catch' ? FN.ui.catchForm(S)
       : S.view === 'catches' ? FN.ui.catches(S)
@@ -37,6 +38,7 @@
     if (S._keepScroll) body.scrollTop = scroll; else body.scrollTop = 0;
     S._keepScroll = false;
     if (body.querySelector('img[data-photo]')) setTimeout(hydratePhotos, 0);
+    const fb = document.getElementById('fab-forecast'); if (fb) fb.classList.toggle('on', S.view === 'quick');
   }
   // Several data loads can land within a few milliseconds of each other; rebuild the panel once per frame
   let renderQueued = false, renderRaf = 0, renderTimer = 0;
@@ -175,6 +177,37 @@
   function goHome() {
     S.view = 'home'; location.hash = ''; document.title = 'Fish Nasty';
     render();
+  }
+
+  /* ---------- quick bite forecast for wherever you are looking ---------- */
+  async function openQuick(source) {
+    closeSearch(); closePinMenu(); $('#layers-panel').classList.add('hidden'); $('#legend').classList.add('hidden');
+    const map = FN.map.getMap();
+    let lat, lon, label = null;
+    if (source === 'gps-cached' && S.location) { lat = S.location.lat; lon = S.location.lon; source = 'gps'; }
+    else if (source === 'gps') {
+      try { const loc = await FN.map.locate(); S.location = loc; lat = loc.lat; lon = loc.lon; }
+      catch (e) { toast(e.code === 1 ? 'Location permission denied. Using the map center instead.' : 'Could not get your location. Using the map center.'); source = 'center'; }
+    }
+    if (source !== 'gps') { const c = map.getCenter(); lat = c.lat; lon = c.lng; }
+    const near = FN.map.nearestLakeName(lat, lon);
+    const same = S.quick && S.quick.weather && Math.abs(S.quick.lat - lat) < 0.01 && Math.abs(S.quick.lon - lon) < 0.015;
+    S.quick = { source, lat, lon, near: near ? near.name : null, nearDow: near ? near.dow : null, weather: same ? S.quick.weather : null, bite: same ? S.quick.bite : null, loading: !same, error: null, codes: ['WAE', 'NOP', 'BLC', 'MUE', 'LMB', 'SMB', 'BLG', 'YEP', 'LAT'] };
+    S.view = 'quick'; S.dayIdx = 0; S.hourIdx = null;
+    render(); if (isMobile()) setSheet('full');
+    if (same) return;
+    try {
+      const w = await FN.weather.forecast(lat, lon);
+      if (S.view !== 'quick' || S.quick.lat !== lat) return;
+      S.quick.weather = w; computeQuickBite();
+    } catch (e) { S.quick.error = 'Weather unavailable: ' + e.message; }
+    S.quick.loading = false;
+    if (S.view === 'quick') rerender();
+  }
+  function computeQuickBite() {
+    if (!S.quick || !S.quick.weather) return;
+    const sp = S.species !== 'ALL' && S.quick.codes.includes(S.species) ? S.species : 'ALL';
+    S.quick.bite = FN.forecast.compute(S.quick.weather, S.quick.lat, S.quick.lon, sp, S.catches);
   }
 
   /* ---------- lake finder (Top 20 + filters) ---------- */
@@ -571,7 +604,9 @@
       case 'tab': S.tab = el.dataset.tab; render(); if (window.matchMedia('(max-width: 899px)').matches) setSheet('full'); break;
       case 'fav': toggleFav(); break;
       case 'zoom-lake': FN.map.showLake(S.lake, { fit: true }); if (window.matchMedia('(max-width: 899px)').matches) setSheet('collapsed'); break;
-      case 'species': S.species = el.dataset.code; U.store.set(K.species, S.species); S.hourIdx = null; computeBite(); rerender(); break;
+      case 'species': S.species = el.dataset.code; U.store.set(K.species, S.species); S.hourIdx = null; computeBite(); computeQuickBite(); rerender(); break;
+      case 'quick-center': openQuick('center'); break;
+      case 'quick-gps': openQuick('gps'); break;
       case 'day': S.dayIdx = Number(el.dataset.i); S.hourIdx = null; rerender(); break;
       case 'hour': S.hourIdx = Number(el.dataset.i); rerender(); break;
       case 'locate-nearby': locateNearby(); break;
@@ -676,10 +711,11 @@
   $('#btn-home').addEventListener('click', goHome);
   $('#btn-top').addEventListener('click', openTop);
   $('#fab-locate').addEventListener('click', locateNearby);
+  $('#fab-forecast').addEventListener('click', () => { if (S.view === 'quick') { S.view = S.lake ? 'lake' : 'home'; render(); } else openQuick(S.location ? 'gps-cached' : 'center'); });
   $('#fab-pin').addEventListener('click', () => { const m = $('#pin-menu'); if (m.classList.contains('hidden')) { m.innerHTML = FN.ui.pinMenu(); m.classList.remove('hidden'); $('#layers-panel').classList.add('hidden'); $('#legend').classList.add('hidden'); } else closePinMenu(); });
   $('#fab-zoomin').addEventListener('click', () => FN.map.getMap().zoomIn());
   $('#fab-zoomout').addEventListener('click', () => FN.map.getMap().zoomOut());
-  const syncToolState = () => { $('#fab-layers').classList.toggle('on', !$('#layers-panel').classList.contains('hidden')); $('#fab-legend').classList.toggle('on', !$('#legend').classList.contains('hidden')); $('#fab-pin').classList.toggle('on', !$('#pin-menu').classList.contains('hidden') || S.placeMode); };
+  const syncToolState = () => { $('#fab-layers').classList.toggle('on', !$('#layers-panel').classList.contains('hidden')); $('#fab-legend').classList.toggle('on', !$('#legend').classList.contains('hidden')); $('#fab-pin').classList.toggle('on', !$('#pin-menu').classList.contains('hidden') || S.placeMode); $('#fab-forecast').classList.toggle('on', S.view === 'quick'); };
   new MutationObserver(syncToolState).observe(document.getElementById('app'), { attributes: true, subtree: true, attributeFilter: ['class'] });
   $('#fab-layers').addEventListener('click', () => { renderLayers(); $('#layers-panel').classList.toggle('hidden'); $('#legend').classList.add('hidden'); closePinMenu(); });
   $('#fab-legend').addEventListener('click', () => { $('#legend').classList.toggle('hidden'); $('#layers-panel').classList.add('hidden'); closePinMenu(); });

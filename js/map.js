@@ -332,8 +332,17 @@ FN.map = (() => {
   const onZoom = fn => listeners.zoom.push(fn);
   const onHold = fn => listeners.hold.push(fn);
   const onLabel = fn => listeners.label.push(fn);
+  // Closest named lake we know about (from the name labels fetched for the current area)
+  function nearestLakeName(lat, lon, maxMeters = 4000) {
+    let best = null, bestD = Infinity;
+    for (const l of labelCache.values()) {
+      const d = map.distance([lat, lon], [l.lat, l.lon]);
+      if (d < bestD) { bestD = d; best = l; }
+    }
+    return best && bestD <= maxMeters ? best : null;
+  }
   const getMap = () => map;
   const getSettings = () => settings;
 
-  return { init, update, showLake, showAccess, flyTo, locate, popup, onTap, onZoom, onHold, onLabel, getMap, getSettings, DEFAULTS, renderPins, openPin, setPlaceMode, closePopups, utmToLatLng };
+  return { init, update, showLake, showAccess, flyTo, locate, popup, onTap, onZoom, onHold, onLabel, getMap, getSettings, DEFAULTS, renderPins, openPin, setPlaceMode, closePopups, utmToLatLng, nearestLakeName };
 })();
