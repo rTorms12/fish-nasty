@@ -3,7 +3,7 @@ window.FN = window.FN || {};
 
 FN.config = {
   appName: 'Fish Nasty',
-  version: '1.5.1',
+  version: '1.5.2',
   tz: 'America/Chicago',
 
   // Minnesota DNR LakeFinder (public JSON/HTML endpoints, CORS enabled)
@@ -19,7 +19,8 @@ FN.config = {
   gis: {
     bathy:  'https://enterprise.gisdata.mn.gov/aghost/rest/services/us_mn_state_dnr/water_lake_bathymetry/MapServer',
     relief: 'https://enterprise.gisdata.mn.gov/aghost/rest/services/us_mn_state_dnr/water_lake_bathy_shaded_relief/ImageServer',
-    access: 'https://enterprise.gisdata.mn.gov/aghost/rest/services/us_mn_state_dnr/struc_water_access_sites/FeatureServer/0'
+    access: 'https://enterprise.gisdata.mn.gov/aghost/rest/services/us_mn_state_dnr/struc_water_access_sites/FeatureServer/0',
+    hydro:  'https://enterprise.gisdata.mn.gov/aghost/rest/services/us_mn_state_dnr/water_dnr_hydrography/MapServer'
   },
 
   weather: 'https://api.open-meteo.com/v1/forecast',
@@ -37,7 +38,8 @@ FN.config = {
     minZoom: 5,
     maxZoom: 18,
     contourMinZoom: 10,
-    labelMinZoom: 13
+    labelMinZoom: 13,
+    nameMinZoom: 11
   },
 
   // Depth bands (feet). Sequential single-hue ramp, shallow (light) -> deep (dark).

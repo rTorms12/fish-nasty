@@ -474,6 +474,7 @@ FN.ui = (() => {
     <label class="switch"><input type="checkbox" data-toggle="relief" ${s.relief ? 'checked' : ''}><span>Depth shading</span></label>
     <label class="switch"><input type="checkbox" data-toggle="contours" ${s.contours ? 'checked' : ''}><span>Depth contours</span></label>
     <label class="switch"><input type="checkbox" data-toggle="labels" ${s.labels ? 'checked' : ''}><span>Depth labels (zoom 13+)</span></label>
+    <label class="switch"><input type="checkbox" data-toggle="names" ${s.names !== false ? 'checked' : ''}><span>Lake names (zoom 11+)</span></label>
     <label class="range"><span>Shading opacity</span><input type="range" min="0.2" max="1" step="0.05" value="${s.opacity}" data-range="opacity"></label>
     <div class="depth-filter"><div class="eyebrow">Highlight depth range</div><div class="row">
       <select data-depth="min">${mins.map(v => `<option value="${v}" ${v === s.depthMin ? 'selected' : ''}>${v} ft</option>`).join('')}</select><span>to</span>

@@ -550,6 +550,7 @@
     } catch (e) { /* ignore */ }
   });
   FN.map.onHold(latlng => { if (S.placeMode) setPlaceMode(false); addPin(latlng.lat, latlng.lng, { source: 'hold' }); });
+  FN.map.onLabel(l => { if (!S.placeMode && l.dow) openLake(l.dow, { fit: false }); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && S.placeMode) setPlaceMode(false); });
   const hint = $('#zoom-hint');
   FN.map.onZoom(z => { hint.classList.toggle('hidden', z >= C.map.contourMinZoom); });

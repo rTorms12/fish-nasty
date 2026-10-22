@@ -222,6 +222,13 @@ select { font: inherit; background: var(--panel-2); color: var(--text); border: 
 .acc { padding: 10px 0; border-bottom: 1px solid var(--line); }
 .acc .actions { margin-top: 8px; }
 
+/* lake name labels */
+.lake-label { background: none; border: 0; }
+.lake-label span { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); white-space: nowrap; color: #fff; font-weight: 800; font-size: 13px; letter-spacing: .02em; padding: 2px 8px; border-radius: 999px; background: rgba(4,20,31,.42); text-shadow: 0 0 3px #04141f, 0 0 6px #04141f, 0 1px 2px #000; cursor: pointer; pointer-events: auto; }
+.lake-label.md span { font-size: 15px; padding: 3px 10px; }
+.lake-label.lg span { font-size: 18px; padding: 4px 12px; }
+.lake-label span:hover, .lake-label.current span { background: rgba(88,209,255,.92); color: #04141f; text-shadow: none; }
+
 /* map markers */
 .lake-pin .pin { width: 34px; height: 34px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); background: var(--accent); border: 3px solid #fff; box-shadow: 0 4px 10px rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; }
 .lake-pin .pin span { transform: rotate(45deg); font-size: 16px; }

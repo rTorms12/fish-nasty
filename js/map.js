@@ -6,9 +6,9 @@ FN.map = (() => {
   let map, lakeMarker, accessGroup, locateGroup, pinsGroup;
   const base = {}, overlays = {};
   const pinMarkers = new Map();
-  const DEFAULTS = { basemap: 'sat', relief: true, contours: true, labels: true, opacity: 0.9, depthMin: 0, depthMax: 999 };
+  const DEFAULTS = { basemap: 'sat', relief: true, contours: true, labels: true, names: true, opacity: 0.9, depthMin: 0, depthMax: 999 };
   const settings = Object.assign({}, DEFAULTS, U.store.get(C.storageKeys.layers, {}));
-  const listeners = { tap: [], zoom: [], hold: [] };
+  const listeners = { tap: [], zoom: [], hold: [], label: [] };
 
   /* ArcGIS "export" / "exportImage" rendered per tile (no tile cache on the DNR servers) */
   const DynamicLayer = L.TileLayer.extend({
@@ -125,7 +125,10 @@ FN.map = (() => {
     accessGroup = L.layerGroup().addTo(map);
     locateGroup = L.layerGroup().addTo(map);
     pinsGroup = L.layerGroup().addTo(map);
+    labelGroup.addTo(map);
     applySettings();
+    map.on('moveend zoomend', scheduleLabels);
+    scheduleLabels();
 
     map.on('click', e => { for (const fn of listeners.tap) fn(e.latlng); });
     // Right-click on desktop, long-press on touch screens
@@ -153,11 +156,85 @@ FN.map = (() => {
     Object.assign(settings, patch);
     applySettings();
     if (redraw) overlays.contours.redraw();
+    if ('names' in patch) renderLabels();
+  }
+
+  /* ---------- lake name labels (DNR hydrography; big, readable, tappable) ---------- */
+  const labelGroup = L.layerGroup();
+  const labelCache = new Map();            // lake id -> { dow, name, acres, lat, lon }
+  let labelFetched = null, labelTimer = null, labelReq = 0;
+  const labelMinAcres = z => (z >= 15 ? 2 : z >= 14 ? 5 : z >= 13 ? 12 : z >= 12 ? 40 : 120);
+  let currentDow = null;
+  // UTM zone 15N (the DNR's native projection) -> WGS84, for the per-lake center points the layer carries
+  function utmToLatLng(x, y, zone = 15) {
+    const a = 6378137, e2 = 0.00669438, k0 = 0.9996, ep2 = e2 / (1 - e2);
+    const xm = x - 500000, M = y / k0;
+    const mu = M / (a * (1 - e2 / 4 - 3 * e2 * e2 / 64 - 5 * e2 * e2 * e2 / 256));
+    const e1 = (1 - Math.sqrt(1 - e2)) / (1 + Math.sqrt(1 - e2));
+    const phi1 = mu + (3 * e1 / 2 - 27 * e1 ** 3 / 32) * Math.sin(2 * mu) + (21 * e1 * e1 / 16 - 55 * e1 ** 4 / 32) * Math.sin(4 * mu) + (151 * e1 ** 3 / 96) * Math.sin(6 * mu);
+    const sin1 = Math.sin(phi1), cos1 = Math.cos(phi1), tan1 = Math.tan(phi1);
+    const N1 = a / Math.sqrt(1 - e2 * sin1 * sin1), T1 = tan1 * tan1, C1 = ep2 * cos1 * cos1;
+    const R1 = a * (1 - e2) / Math.pow(1 - e2 * sin1 * sin1, 1.5), D = xm / (N1 * k0);
+    const lat = phi1 - (N1 * tan1 / R1) * (D * D / 2 - (5 + 3 * T1 + 10 * C1 - 4 * C1 * C1 - 9 * ep2) * D ** 4 / 24 + (61 + 90 * T1 + 298 * C1 + 45 * T1 * T1 - 252 * ep2 - 3 * C1 * C1) * D ** 6 / 720);
+    const lon0 = ((zone - 1) * 6 - 180 + 3) * Math.PI / 180;
+    const lon = lon0 + (D - (1 + 2 * T1 + C1) * D ** 3 / 6 + (5 - 2 * C1 + 28 * T1 - 3 * C1 * C1 + 8 * ep2 + 24 * T1 * T1) * D ** 5 / 120) / cos1;
+    return { lat: lat * 180 / Math.PI, lng: lon * 180 / Math.PI };
+  }
+  function scheduleLabels() { clearTimeout(labelTimer); labelTimer = setTimeout(updateLabels, 180); }
+  async function updateLabels() {
+    const z = map.getZoom();
+    if (z < C.map.nameMinZoom || !settings.names) { labelGroup.clearLayers(); return; }
+    const view = map.getBounds(), minAcres = labelMinAcres(z);
+    if (labelFetched && labelFetched.bounds.contains(view) && labelFetched.minAcres <= minAcres) { renderLabels(); return; }
+    const b = view.pad(0.7);
+    const my = ++labelReq;
+    const env = { xmin: b.getWest(), ymin: b.getSouth(), xmax: b.getEast(), ymax: b.getNorth(), spatialReference: { wkid: 4326 } };
+    const where = `acres >= ${minAcres} AND sub_flag = 'N' AND wb_class = 'Lake or Pond' AND pw_basin_name IS NOT NULL AND pw_basin_name NOT LIKE 'Unnamed%'`;
+    const url = `${C.gis.hydro}/1/query?geometry=${encodeURIComponent(JSON.stringify(env))}&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&where=${encodeURIComponent(where)}&outFields=dowlknum,pw_basin_name,acres,center_utm_x,center_utm_y&returnGeometry=false&resultRecordCount=600&f=json`;
+    try {
+      const d = await fetch(url).then(r => r.json());
+      if (my !== labelReq) return;
+      for (const f of d.features || []) {
+        const a = f.attributes;
+        if (a.center_utm_x == null || a.center_utm_y == null || !a.pw_basin_name) continue;
+        const ll = utmToLatLng(a.center_utm_x, a.center_utm_y);
+        const key = a.dowlknum || `${a.pw_basin_name}@${ll.lat.toFixed(3)},${ll.lng.toFixed(3)}`;
+        labelCache.set(key, { dow: a.dowlknum, name: a.pw_basin_name, acres: a.acres || 0, lat: ll.lat, lon: ll.lng });
+      }
+      labelFetched = { bounds: b, minAcres };
+    } catch (e) { /* offline or server hiccup: keep whatever names we already have */ }
+    renderLabels();
+  }
+  function renderLabels() {
+    labelGroup.clearLayers();
+    const z = map.getZoom();
+    if (z < C.map.nameMinZoom || !settings.names) return;
+    const view = map.getBounds().pad(0.15), minA = labelMinAcres(z);
+    const size = z >= 14 ? 'lg' : z >= 12 ? 'md' : 'sm';
+    const pxW = size === 'lg' ? 9.5 : size === 'md' ? 8 : 7, pxH = size === 'lg' ? 30 : 26;
+    // Biggest lakes first; skip a name whose box would overlap one already placed
+    const placed = [];
+    const cands = [...labelCache.values()].filter(l => l.acres >= minA && view.contains([l.lat, l.lon]) && !/^unnamed/i.test(l.name)).sort((a, b) => b.acres - a.acres);
+    for (const l of cands) {
+      const p = map.latLngToLayerPoint([l.lat, l.lon]);
+      const w = l.name.length * pxW + 20;
+      if (placed.some(q => Math.abs(q.x - p.x) < (q.w + w) / 2 && Math.abs(q.y - p.y) < pxH)) continue;
+      placed.push({ x: p.x, y: p.y, w });
+      const isCurrent = currentDow && l.dow && U.dowPrefix(l.dow) === U.dowPrefix(currentDow);
+      const m = L.marker([l.lat, l.lon], {
+        icon: L.divIcon({ className: `lake-label ${size}${isCurrent ? ' current' : ''}`, html: `<span>${U.esc(l.name)}</span>`, iconSize: [0, 0], iconAnchor: [0, 0] }),
+        interactive: !!l.dow, keyboard: false, zIndexOffset: -200, title: l.dow ? `${l.name} — tap for lake info` : l.name
+      });
+      if (l.dow) m.on('click', () => { for (const fn of listeners.label) fn(l); });
+      labelGroup.addLayer(m);
+    }
   }
 
   let fitCount = 0;
   function showLake(lake, { fit = true } = {}) {
+    currentDow = lake ? lake.id : null;
     if (lakeMarker) { map.removeLayer(lakeMarker); lakeMarker = null; }
+    if (labelGroup) renderLabels();
     if (!lake || lake.lat == null) return;
     lakeMarker = L.marker([lake.lat, lake.lon], {
       icon: L.divIcon({ className: 'lake-pin', html: '<div class="pin"><span>🎣</span></div>', iconSize: [34, 42], iconAnchor: [17, 42] }),
@@ -247,8 +324,9 @@ FN.map = (() => {
   const onTap = fn => listeners.tap.push(fn);
   const onZoom = fn => listeners.zoom.push(fn);
   const onHold = fn => listeners.hold.push(fn);
+  const onLabel = fn => listeners.label.push(fn);
   const getMap = () => map;
   const getSettings = () => settings;
 
-  return { init, update, showLake, showAccess, flyTo, locate, popup, onTap, onZoom, onHold, getMap, getSettings, DEFAULTS, renderPins, openPin, setPlaceMode, closePopups };
+  return { init, update, showLake, showAccess, flyTo, locate, popup, onTap, onZoom, onHold, onLabel, getMap, getSettings, DEFAULTS, renderPins, openPin, setPlaceMode, closePopups, utmToLatLng };
 })();
