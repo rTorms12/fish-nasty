@@ -248,18 +248,20 @@ Object.assign(FN.ui, (() => {
   const standalone = () => window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
   const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const SHARE_IC = '<svg class="share-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 11v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9"/></svg>';
-  // Add-to-home-screen nudge: on the home page until dismissed, always on the profile page
-  function a2hsCard(S, where) {
-    if (standalone()) return where === 'profile' ? `<div class="card a2hs"><div class="row"><div class="trophy">📲</div><div class="grow"><div class="big">On your home screen</div><div class="muted small">Fish Nasty is installed as an app on this device.</div></div></div></div>` : '';
+  // Add-to-home-screen nudge: shown once on the home page, the first time someone is signed in on this phone
+  function a2hsCard(S) {
+    if (!S.user || S.a2hsDismissed || standalone()) return '';
     const mobile = window.matchMedia('(max-width: 899px)').matches || navigator.maxTouchPoints > 1;
-    if (where === 'home' && (S.a2hsDismissed || !mobile)) return '';
-    if (where === 'profile' && !mobile && !S.installPrompt) return '';
-    const ios = isIOS();
+    if (!mobile) return '';
+    const android = /Android/i.test(navigator.userAgent);
+    const dismiss = `<button class="btn ghost small" data-action="a2hs-dismiss">Got it</button>`;
     const how = S.installPrompt
-      ? `<div class="actions"><button class="btn" data-action="a2hs-install">Install Fish Nasty</button>${where === 'home' ? `<button class="btn ghost" data-action="a2hs-dismiss">Not now</button>` : ''}</div>`
-      : ios
-        ? `<ol><li>Tap <b>Share</b> ${SHARE_IC} at the bottom of Safari (top right on iPad).</li><li>Scroll down and tap <b>Add to Home Screen</b>.</li><li>Tap <b>Add</b>. The walleye icon lands on your home screen.</li></ol>${where === 'home' ? `<div class="actions"><button class="btn ghost small" data-action="a2hs-dismiss">Got it</button></div>` : ''}`
-        : `<ol><li>Open the browser menu (<b>⋮</b>).</li><li>Tap <b>Add to Home screen</b> or <b>Install app</b>.</li></ol>${where === 'home' ? `<div class="actions"><button class="btn ghost small" data-action="a2hs-dismiss">Got it</button></div>` : ''}`;
+      ? `<p class="small">One tap and it installs like a regular app.</p><div class="actions"><button class="btn" data-action="a2hs-install">Install Fish Nasty</button><button class="btn ghost" data-action="a2hs-dismiss">Not now</button></div>`
+      : isIOS()
+        ? `<ol><li>Tap <b>Share</b> ${SHARE_IC} at the bottom of Safari (top right on iPad).</li><li>Scroll down and tap <b>Add to Home Screen</b>.</li><li>Tap <b>Add</b>. The walleye icon lands on your home screen.</li></ol><div class="actions">${dismiss}</div>`
+        : android
+          ? `<p class="small"><b>Chrome:</b></p><ol><li>Tap the <b>⋮</b> menu in the top right.</li><li>Tap <b>Add to Home screen</b> (or <b>Install app</b>), then <b>Install</b>.</li></ol><p class="small"><b>Samsung Internet:</b></p><ol><li>Tap the <b>≡</b> menu at the bottom.</li><li>Tap <b>Add page to</b>, then <b>Home screen</b>.</li></ol><div class="actions">${dismiss}</div>`
+          : `<ol><li>Open the browser menu.</li><li>Tap <b>Add to Home screen</b> or <b>Install app</b>.</li></ol><div class="actions">${dismiss}</div>`;
     return `<div class="card a2hs"><div class="row"><div class="trophy">📲</div><div class="grow"><div class="big">Add Fish Nasty to your home screen</div><div class="muted small">Opens full screen like an app, loads faster, and keeps working on the water where service is spotty.</div></div></div>${how}</div>`;
   }
 
@@ -345,7 +347,6 @@ Object.assign(FN.ui, (() => {
       const friends = fr.filter(f => f.status === 'accepted').length, pending = fr.filter(f => f.status === 'pending' && f.addressee_id === S.user.id).length;
       parts.push(`<button class="card link" data-action="buddies"><div class="row"><div class="trophy">👥</div><div class="grow"><div class="big">Buddies${S.buddies ? ` <span class="muted">· ${friends}</span>` : ''}${pending ? ` <span class="badge">${pending} request${pending === 1 ? '' : 's'}</span>` : ''}</div><div class="muted small">Shared pins, catches and lake reports from your crew</div></div><div class="chev">›</div></div></button>`);
     }
-    parts.push(a2hsCard(S, 'profile'));
     parts.push(`<h2>Backup & settings</h2><div class="card"><p class="small">${signed ? `${S.syncing ? 'Syncing…' : S.lastSync ? `Last synced ${U.fmtTime(S.lastSync)}.` : 'Not synced yet.'} Pins, favorites, catches and photos are backed up to your account.` : 'Signed out: pins, favorites and catches live only in this browser. Sign in to back them up.'}</p><div class="actions">${signed ? `<button class="btn ghost small" data-action="sync-now">Sync now</button><button class="btn ghost small" data-action="account">Account settings</button>` : `<button class="btn small" data-action="account">Sign in</button>`}${all.length ? `<button class="btn ghost small" data-action="catch-export">Download catches (CSV)</button>` : ''}${signed ? `<button class="btn ghost small danger" data-action="signout">Sign out</button>` : ''}</div></div>`);
     parts.push(`<div class="foot">Fish Nasty v${esc(C.version)}</div>`);
     return parts.join('');

@@ -49,6 +49,7 @@ FN.ui = (() => {
     const favs = S.favorites || [];
     const parts = [];
     parts.push(`<div class="hero"><div class="logo">${ICON.fish}</div><div><h1>Fish Nasty</h1><p>Minnesota lake maps, DNR surveys, stocking records and a bite forecast.</p></div></div>`);
+    parts.push(FN.ui.a2hsCard(S));
     if (!S.user && FN.cloud && FN.cloud.available()) {
       parts.push(`<button class="card link signin-card" data-action="account"><div class="row"><div class="avatar">☁️</div><div class="grow"><div class="big">Sign in or create an account</div><div class="muted small">Back up and sync your pins and favorites, keep a catch log with photos, and share spots with buddies.</div></div><div class="chev">›</div></div></button>`);
     }
@@ -85,7 +86,6 @@ FN.ui = (() => {
     } else if (FN.cloud && FN.cloud.available()) {
       if (S.catches && S.catches.length) parts.push(`<button class="card link" data-action="catches"><div class="row"><div class="trophy">🎣</div><div class="grow"><div class="big">Catch log <span class="muted">· ${S.catches.length}</span></div><div class="muted small">Kept on this device. Sign in to back it up and sync.</div></div><div class="chev">›</div></div></button>`);
     }
-    parts.push(FN.ui.a2hsCard(S, 'home'));
     if (S.nearby && S.nearby.length) {
       parts.push(`<h2>Lakes with depth maps near you</h2><div class="list">${S.nearby.slice(0, 12).map(l => lakeRow({ id: l.id, name: l.name, county: l.county, acres: l.acres })).join('')}</div>`);
     }
