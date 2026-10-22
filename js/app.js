@@ -134,7 +134,7 @@
     const my = ++reqId;
     S.view = 'lake'; S.tab = S.tab === 'overview' || !S.lake || S.lake.id !== id ? 'overview' : S.tab;
     S.loading = { lake: true, detail: true, stocking: true, access: true, weather: true }; S.errors = {};
-    S.detail = S.stocking = S.access = S.weather = S.bite = null; S.bathy = null; S.dayIdx = 0; S.hourIdx = null; S.surveyIdx = 0;
+    S.detail = S.stocking = S.access = S.weather = S.bite = null; S.bathy = null; S.history = null; S.dayIdx = 0; S.hourIdx = null; S.surveyIdx = 0;
     let lake = (S.lake && S.lake.id === id) ? S.lake : null;
     if (!lake) {
       body.innerHTML = FN.ui.spinner('Loading lake…');
@@ -152,7 +152,7 @@
     render();
 
     // Load everything in parallel; render as each arrives
-    FN.dnr.detail(lake.id).then(d => { if (my !== reqId) return; S.detail = d; S.loading.detail = false; if (d && !lake.species.length) { lake.species = latestSpeciesNames(d); lake.speciesCodes = lake.species.map(FN.speciesCode).filter(Boolean); } rerender(); })
+    FN.dnr.detail(lake.id).then(d => { if (my !== reqId) return; S.detail = d; S.loading.detail = false; if (d && !lake.species.length) { lake.species = latestSpeciesNames(d); lake.speciesCodes = lake.species.map(FN.speciesCode).filter(Boolean); } computeBite(); rerender(); })
       .catch(e => { if (my !== reqId) return; S.errors.detail = 'Could not load the DNR survey: ' + e.message; S.loading.detail = false; rerender(); });
     (lake.resources.fishStocking ? FN.dnr.stocking(lake.id) : Promise.resolve({ rows: [], notes: {} }))
       .then(st => { if (my !== reqId) return; S.stocking = st; S.loading.stocking = false; rerender(); })
@@ -161,17 +161,22 @@
     FN.dnr.accessSites(lake).then(a => { if (my !== reqId) return; S.access = a; S.loading.access = false; FN.map.showAccess(a); rerender(); })
       .catch(() => { if (my !== reqId) return; S.access = []; S.loading.access = false; rerender(); });
     if (lake.lat != null) {
-      FN.weather.forecast(lake.lat, lake.lon).then(w => { if (my !== reqId) return; S.weather = w; S.loading.weather = false; computeBite(); rerender(); })
+      Promise.all([FN.weather.forecast(lake.lat, lake.lon), FN.weather.history(lake.lat, lake.lon).catch(() => null)])
+        .then(([w, hist]) => { if (my !== reqId) return; S.weather = w; S.history = hist; S.loading.weather = false; computeBite(); rerender(); })
         .catch(e => { if (my !== reqId) return; S.errors.weather = 'Weather unavailable: ' + e.message; S.loading.weather = false; rerender(); });
     } else { S.loading.weather = false; S.errors.weather = 'No coordinates for this lake.'; }
   }
   const latestSpeciesNames = d => { const s = d.surveys.find(x => x.catches.length); return s ? [...new Set(s.catches.map(c => c.name))] : []; };
 
+  function lakeCtx() {
+    const L = S.lake, D = S.detail;
+    return { history: S.history, acres: (D && D.areaAcres) || (L && L.acres) || null, maxDepth: (D && D.maxDepth) || (L && L.maxDepth) || null, clarity: (D && D.avgClarity) || null };
+  }
   function computeBite() {
     if (!S.weather || !S.lake) return;
     let sp = S.species;
     if (sp !== 'ALL' && !S.lake.speciesCodes.includes(sp)) sp = 'ALL';
-    S.bite = FN.forecast.compute(S.weather, S.lake.lat, S.lake.lon, sp, S.catches);
+    S.bite = FN.forecast.compute(S.weather, S.lake.lat, S.lake.lon, sp, S.catches, lakeCtx());
   }
 
   function pushRecent(lake) {
@@ -204,9 +209,9 @@
     render(); if (isMobile()) setSheet('full');
     if (same) return;
     try {
-      const w = await FN.weather.forecast(lat, lon);
+      const [w, hist] = await Promise.all([FN.weather.forecast(lat, lon), FN.weather.history(lat, lon).catch(() => null)]);
       if (S.view !== 'quick' || S.quick.lat !== lat) return;
-      S.quick.weather = w; computeQuickBite();
+      S.quick.weather = w; S.quick.history = hist; computeQuickBite();
     } catch (e) { S.quick.error = 'Weather unavailable: ' + e.message; }
     S.quick.loading = false;
     if (S.view === 'quick') rerender();
@@ -214,7 +219,7 @@
   function computeQuickBite() {
     if (!S.quick || !S.quick.weather) return;
     const sp = S.species !== 'ALL' && S.quick.codes.includes(S.species) ? S.species : 'ALL';
-    S.quick.bite = FN.forecast.compute(S.quick.weather, S.quick.lat, S.quick.lon, sp, S.catches);
+    S.quick.bite = FN.forecast.compute(S.quick.weather, S.quick.lat, S.quick.lon, sp, S.catches, { history: S.quick.history });
   }
 
   /* ---------- lake finder (Top 20 + filters) ---------- */
@@ -555,8 +560,8 @@
   async function loadHomeBite(lat, lon, label) {
     S.loading.home = true;
     try {
-      const w = await FN.weather.forecast(lat, lon);
-      S.homeWeather = w; S.homeBite = FN.forecast.compute(w, lat, lon, 'ALL', S.catches); S.homeLabel = label;
+      const [w, hist] = await Promise.all([FN.weather.forecast(lat, lon), FN.weather.history(lat, lon).catch(() => null)]);
+      S.homeWeather = w; S.homeBite = FN.forecast.compute(w, lat, lon, 'ALL', S.catches, { history: hist }); S.homeLabel = label;
     } catch (e) { /* offline */ }
     S.loading.home = false;
     if (S.view === 'home') rerender();

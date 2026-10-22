@@ -25,7 +25,7 @@ FN.weather = (() => {
     if (hit && Date.now() - hit.t < 30 * 60 * 1000) return hit.data;
     const p = new URLSearchParams({
       latitude: lat.toFixed(4), longitude: lon.toFixed(4),
-      hourly: 'temperature_2m,apparent_temperature,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover,precipitation,precipitation_probability,weather_code,is_day',
+      hourly: 'temperature_2m,apparent_temperature,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover,precipitation,precipitation_probability,weather_code,is_day,shortwave_radiation',
       daily: 'sunrise,sunset,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,weather_code',
       current: 'temperature_2m,apparent_temperature,wind_speed_10m,wind_direction_10m,wind_gusts_10m,pressure_msl,cloud_cover,weather_code,precipitation,is_day',
       temperature_unit: 'fahrenheit', wind_speed_unit: 'mph', precipitation_unit: 'inch',
@@ -42,7 +42,7 @@ FN.weather = (() => {
       pressure: h.pressure_msl[i],
       wind: h.wind_speed_10m[i], windDir: h.wind_direction_10m[i], gust: h.wind_gusts_10m[i],
       cloud: h.cloud_cover[i], precip: h.precipitation[i], pop: h.precipitation_probability[i],
-      code: h.weather_code[i], isDay: h.is_day[i] === 1
+      code: h.weather_code[i], isDay: h.is_day[i] === 1, radiation: h.shortwave_radiation ? h.shortwave_radiation[i] : null
     }));
     const d = j.daily;
     const days = d.time.map((t, i) => ({
@@ -70,5 +70,21 @@ FN.weather = (() => {
 
   const hPaToInHg = hpa => (hpa * 0.02953).toFixed(2);
 
-  return { forecast, describe, hPaToInHg };
+  // Daily mean air temperature for the past 45 days plus the forecast week: feeds the water-temperature model
+  const histCache = new Map();
+  async function history(lat, lon) {
+    const key = `${lat.toFixed(2)},${lon.toFixed(2)}`;
+    const hit = histCache.get(key);
+    if (hit && Date.now() - hit.t < 6 * 3600 * 1000) return hit.data;
+    const p = new URLSearchParams({ latitude: lat.toFixed(4), longitude: lon.toFixed(4), daily: 'temperature_2m_mean,temperature_2m_max,temperature_2m_min', temperature_unit: 'fahrenheit', timezone: C.tz, past_days: '45', forecast_days: '8' });
+    const r = await fetch(`${C.weather}?${p.toString()}`);
+    if (!r.ok) throw new Error('History request failed');
+    const j = await r.json();
+    const d = j.daily;
+    const data = d.time.map((t, i) => ({ date: FN.util.parseLocal(t), mean: d.temperature_2m_mean[i], hi: d.temperature_2m_max[i], lo: d.temperature_2m_min[i] })).filter(x => x.mean != null);
+    histCache.set(key, { t: Date.now(), data });
+    return data;
+  }
+
+  return { forecast, history, describe, hPaToInHg };
 })();

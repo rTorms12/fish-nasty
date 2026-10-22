@@ -21,8 +21,39 @@ FN.forecast = (() => {
     heat: 'Heat',
     frigid: 'Frigid air',
     season: 'Seasonal pattern',
-    personal: 'Your catch history'
+    personal: 'Your catch history',
+    waterTemp: 'Water temperature (modeled)',
+    spawn: 'Spawn window',
+    turnover: 'Fall turnover'
   };
+
+  // Preferred surface-water temperatures (°F): [too cold below, optimum low, optimum high, too warm above]
+  const TEMP_PREF = { WAE: [40, 55, 70, 78], NOP: [38, 50, 65, 74], MUE: [50, 60, 75, 82], LMB: [50, 62, 80, 88], SMB: [48, 58, 75, 84], BLC: [45, 55, 70, 80], BLG: [55, 65, 80, 88], YEP: [38, 50, 68, 76], LAT: [34, 42, 55, 62], RBT: [40, 50, 62, 68], CCF: [60, 70, 85, 92], TLC: [34, 40, 55, 62], BUB: [33, 36, 50, 60], WHB: [50, 60, 78, 86], ALL: [45, 55, 72, 82] };
+  // Spring windows keyed to rising water temperature: [low °F, high °F, label, points]
+  const SPAWN = { BLC: [55, 66, 'crappies up shallow for the spawn', 6], LMB: [58, 68, 'bass pre-spawn and spawn', 4], SMB: [55, 65, 'smallmouth pre-spawn and spawn', 4], BLG: [65, 75, 'bluegills on the beds', 5], WAE: [48, 58, 'post-spawn walleyes feeding', 5], NOP: [40, 50, 'pike just off the spawn', 3], YEP: [44, 52, 'perch spawn', 3], MUE: [60, 68, 'muskies post-spawn', 3] };
+  const baseCode = code => { const p = FN.PROFILES[code]; return p && p.alias ? p.alias : code; };
+  function tempScore(code, tw) {
+    const [c0, o0, o1, w0] = TEMP_PREF[baseCode(code)] || TEMP_PREF.ALL;
+    if (tw < c0) return -6;
+    if (tw < o0) return 6 * (tw - c0) / (o0 - c0);
+    if (tw <= o1) return 6;
+    if (tw < w0) return 6 * (w0 - tw) / (w0 - o1);
+    return Math.max(-10, -8 - (tw - w0) * 0.3);
+  }
+  // Surface water temperature modeled from daily air temperatures. Shallow lakes track the air closely;
+  // deep, big lakes lag by weeks. Floors at 32.5°F for ice.
+  function waterSeries(history, ctx) {
+    if (!history || history.length < 10) return null;
+    const depth = ctx.maxDepth || 30, acres = ctx.acres || 1000;
+    let k = depth < 15 ? 0.22 : depth < 40 ? 0.14 : 0.09;
+    if (acres > 20000) k *= 0.8;
+    const first = history.slice(0, 5).reduce((a, b) => a + b.mean, 0) / Math.min(5, history.length);
+    let tw = Math.max(33, first);
+    const out = [];
+    for (const d of history) { tw += k * (d.mean - tw); tw = Math.max(32.5, tw); out.push({ date: d.date, tw }); }
+    const byKey = new Map(out.map(x => [x.date.toDateString(), x.tw]));
+    return { k, series: out, at: date => byKey.get(date.toDateString()) ?? null, weekAgo: date => byKey.get(new Date(date.getTime() - 7 * 864e5).toDateString()) ?? null };
+  }
 
   const PERIODS = [['dawn', 5, 8], ['morning', 8, 11], ['midday', 11, 15], ['afternoon', 15, 18], ['evening', 18, 21], ['night', 21, 29]];
   const periodOf = h => { const hh = h < 5 ? h + 24 : h; return (PERIODS.find(([, a, b]) => hh >= a && hh < b) || PERIODS[5])[0]; };
@@ -75,9 +106,15 @@ FN.forecast = (() => {
     return { word: 'Poor', cls: 'r1' };
   }
 
-  function compute(weather, lat, lon, speciesCode, catches) {
+  function compute(weather, lat, lon, speciesCode, catches, ctx) {
+    ctx = ctx || {};
     const profile = FN.profileFor(speciesCode) || FN.PROFILES.ALL;
     const personal = catches && catches.length ? personalFactor(catches, speciesCode) : null;
+    const water = waterSeries(ctx.history, ctx);
+    // Clear lakes punish bright sun and reward low light more than stained lakes do
+    const clarityMul = 1 + 0.6 * U.clamp(((ctx.clarity || 8) - 6) / 8, -0.5, 1);
+    const acres = ctx.acres || 1000;
+    const sp = baseCode(speciesCode === 'ALL' ? 'ALL' : speciesCode);
     const W = profile.weights || {};
     const w = k => (W[k] == null ? 1 : W[k]);
     const hours = weather.hours;
@@ -99,20 +136,22 @@ FN.forecast = (() => {
       const dLight = Math.min(mTo(t, info.sunrise), mTo(t, info.sunset));
       let low = 0;
       if (dLight <= 30) low = 12; else if (dLight <= 90) low = 12 * (1 - (dLight - 30) / 60);
-      if (low > 0.5) { f.lowLight = low * w('lowLight'); d.lowLight = dLight <= mTo(t, info.sunrise) + 0.1 && mTo(t, info.sunrise) <= mTo(t, info.sunset) ? 'near sunrise' : 'near sunset'; }
+      if (low > 0.5) { f.lowLight = low * w('lowLight') * (1 + 0.3 * (clarityMul - 1)); d.lowLight = (mTo(t, info.sunrise) <= mTo(t, info.sunset) ? 'near sunrise' : 'near sunset') + (ctx.clarity ? ` · ${ctx.clarity.toFixed(0)} ft clarity` : ''); }
       const isNight = t < new Date(info.dawn.getTime() - 60 * 60000) || t > new Date(info.dusk.getTime() + 60 * 60000);
       if (isNight) f.night = -8 * w('night');
-      if (h.isDay && hr >= 11 && hr <= 15 && h.cloud < 60) f.midday = -5 * w('midday');
+      // Bright sun: measured solar radiation when we have it (accounts for season and sun angle), cloud cover otherwise
+      const bright = h.radiation != null ? h.radiation >= 450 : (h.isDay && hr >= 11 && hr <= 15 && h.cloud < 40);
+      if (bright) { f.midday = -5 * w('midday') * clarityMul; d.midday = h.radiation != null ? `${Math.round(h.radiation)} W/m² of sun` : 'clear midday'; }
 
       // --- solunar / moon ---
       const s = FN.solunar.strengthAt(t, info);
       if (s > 0.05) {
-        f.solunar = 16 * s * w('solunar');
+        f.solunar = 12 * s * w('solunar');
         const near = info.periods.map(p => ({ p, dm: Math.abs(t - p.center) / 60000 })).sort((a, b) => a.dm - b.dm)[0];
         if (near) d.solunar = `${near.p.label} ${U.fmtTime(near.p.center)}`;
       }
       const pf = FN.solunar.phaseFactor(info.phase);
-      if (pf !== 0) { f.moon = (pf > 0 ? 8 * pf : 3 * pf) * w('moon'); d.moon = info.phaseName; }
+      if (pf !== 0) { f.moon = (pf > 0 ? 6 * pf : 2 * pf) * w('moon'); d.moon = info.phaseName; }
 
       // --- pressure ---
       const p3 = i >= 3 ? h.pressure - hours[i - 3].pressure : 0;
@@ -136,6 +175,8 @@ FN.forecast = (() => {
       else if (ws <= 20) { wf = 0; wd = 'breezy'; }
       else if (ws <= 28) { wf = -8; wd = 'rough'; }
       else { wf = -15; wd = 'dangerous'; }
+      if (wf > 0 && acres < 200) wf *= 0.5;                       // small water: chop matters less
+      if (acres > 5000 && ws > 15) { wf -= ws > 25 ? 10 : 4; wd += ', big water'; } // big water gets rough fast
       if (wf) f.wind = wf * (ws < 3 ? w('calm') : w('wind'));
       d.wind = `${Math.round(ws)} mph ${U.windDir(h.windDir)} · ${wd}`;
 
@@ -143,7 +184,7 @@ FN.forecast = (() => {
       if (h.isDay) {
         if (h.cloud >= 70) { f.sky = 6 * w('overcast'); d.sky = `overcast (${h.cloud}%)`; }
         else if (h.cloud >= 30) { f.sky = 2 * w('overcast'); d.sky = `partly cloudy (${h.cloud}%)`; }
-        else if (hr >= 10 && hr <= 16) { f.sky = -4 * w('clear'); d.sky = `clear skies (${h.cloud}%)`; }
+        else if (bright) { f.sky = -4 * w('clear') * clarityMul; d.sky = `clear skies (${h.cloud}%)${ctx.clarity && ctx.clarity >= 10 ? ', clear water' : ''}`; }
       }
 
       // --- precipitation ---
@@ -162,6 +203,18 @@ FN.forecast = (() => {
       if (h.temp > 88 && h.isDay) { f.heat = -5 * w('heat'); d.heat = `${Math.round(h.temp)}°F`; }
       if (h.temp < 10) { f.frigid = -5 * w('cold'); d.frigid = `${Math.round(h.temp)}°F`; }
 
+      // --- water temperature (modeled from air temps) ---
+      const tw = water ? water.at(t) : null;
+      if (tw != null) {
+        const ts = tempScore(sp, tw);
+        if (Math.abs(ts) >= 0.5) { f.waterTemp = ts; d.waterTemp = `~${Math.round(tw)}°F surface${ts < -4 ? (tw < (TEMP_PREF[sp] || TEMP_PREF.ALL)[0] ? ', cold for ' : ', warm for ') + profile.name.toLowerCase() : ''}`; }
+        const mo = t.getMonth() + 1, ago = water.weekAgo(t);
+        if (mo >= 3 && mo <= 6 && SPAWN[sp] && ago != null && tw >= ago - 0.5) {
+          const [lo, hi, label, pts] = SPAWN[sp];
+          if (tw >= lo && tw <= hi) { f.spawn = pts; d.spawn = `${label} (~${Math.round(tw)}°F)`; }
+        }
+        if (mo >= 9 && mo <= 11 && (ctx.maxDepth || 30) >= 25 && tw >= 50 && tw <= 57 && ago != null && tw < ago - 1.5 && ['WAE', 'NOP', 'BLC', 'MUE', 'ALL', 'SMB'].includes(sp)) { f.turnover = -6; d.turnover = 'surface cooled through the 50s on a deep lake'; }
+      }
       // --- season ---
       const sea = profile.season ? profile.season[t.getMonth()] : 0;
       if (sea) f.season = sea;
@@ -198,10 +251,10 @@ FN.forecast = (() => {
       const windows = bestWindows(hrs, Math.max(60, score));
       const drivers = topDrivers(pool);
       const wx = weather.days.find(dd => U.sameDay(dd.date, hrs[0].t));
-      days.push({ date: new Date(hrs[0].t.getFullYear(), hrs[0].t.getMonth(), hrs[0].t.getDate()), hours: hrs, score, rating: rating(score), windows, drivers, info, wx });
+      days.push({ date: new Date(hrs[0].t.getFullYear(), hrs[0].t.getMonth(), hrs[0].t.getDate()), hours: hrs, score, rating: rating(score), windows, drivers, info, wx, water: water ? water.at(hrs[0].t) : null });
     }
 
-    return { species: speciesCode || 'ALL', profile, hours: out, days, computed: new Date() };
+    return { species: speciesCode || 'ALL', profile, hours: out, days, computed: new Date(), water: water ? { today: water.at(new Date()), k: water.k } : null, ctx: { clarity: ctx.clarity || null, acres: ctx.acres || null, maxDepth: ctx.maxDepth || null } };
   }
 
   function bestWindows(hrs, threshold) {

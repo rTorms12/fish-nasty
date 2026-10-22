@@ -357,7 +357,7 @@ FN.ui = (() => {
     const wxd = FN.weather.describe(cur.code);
     parts.push(`<div class="card"><div class="row">${scoreRing(curHour.score, 64)}<div class="grow"><div class="eyebrow">Right now</div><div class="big">${ratingBadge(curHour.rating)} <span class="muted">${esc(B.profile.name)}</span></div>
       <div class="wx">${wxd[1]} ${esc(wxd[0])} · ${Math.round(cur.temp)}°F (feels ${Math.round(cur.feels)}°) · wind ${Math.round(cur.wind)} mph ${U.windDir(cur.windDir)}${cur.gust ? ', gusts ' + Math.round(cur.gust) : ''} · clouds ${cur.cloud}%</div>
-      <div class="wx muted">Barometer ${FN.weather.hPaToInHg(cur.pressure)} inHg ${trend} · ${curHour.info.phaseIcon} ${esc(curHour.info.phaseName)} (${Math.round(curHour.info.illumination * 100)}% lit)</div></div></div></div>`);
+      <div class="wx muted">Barometer ${FN.weather.hPaToInHg(cur.pressure)} inHg ${trend} · ${curHour.info.phaseIcon} ${esc(curHour.info.phaseName)} (${Math.round(curHour.info.illumination * 100)}% lit)${B.water && B.water.today != null ? ` · water ~${Math.round(B.water.today)}°F${B.water.today <= 33 ? ' (ice)' : ''}` : ''}</div></div></div></div>`);
 
     // 7-day strip
     const di = Math.min(S.dayIdx || 0, B.days.length - 1);
@@ -366,7 +366,7 @@ FN.ui = (() => {
     const d = B.days[di];
     if (d) {
       const wx = d.wx;
-      parts.push(`<div class="dayhead"><div><h2>${U.fmtDate(d.date, { weekday: 'long', month: 'long', day: 'numeric' })}</h2>${wx ? `<div class="muted small">${FN.weather.describe(wx.code)[0]} · ${Math.round(wx.hi)}°/${Math.round(wx.lo)}° · wind to ${Math.round(wx.windMax)} mph${wx.pop ? ' · ' + wx.pop + '% precip' : ''}</div>` : ''}</div>${ratingBadge(d.rating)}</div>`);
+      parts.push(`<div class="dayhead"><div><h2>${U.fmtDate(d.date, { weekday: 'long', month: 'long', day: 'numeric' })}</h2>${wx ? `<div class="muted small">${FN.weather.describe(wx.code)[0]} · ${Math.round(wx.hi)}°/${Math.round(wx.lo)}° · wind to ${Math.round(wx.windMax)} mph${wx.pop ? ' · ' + wx.pop + '% precip' : ''}${d.water != null ? ` · water ~${Math.round(d.water)}°F` : ''}</div>` : ''}</div>${ratingBadge(d.rating)}</div>`);
       parts.push(`<div class="windows">${d.windows.length ? d.windows.map(w => `<div class="win"><div class="t">${windowText(w)}</div><div class="s">peak ${w.peak}</div></div>`).join('') : '<div class="muted small">No window scores above 60 — fish the low-light periods and solunar times below.</div>'}</div>`);
       parts.push(biteChart(d, S.hourIdx));
       const hrSel = S.hourIdx != null ? d.hours.find(h => h.t.getHours() === S.hourIdx) : null;
@@ -398,7 +398,7 @@ FN.ui = (() => {
       const season = FN.seasonOf(d ? d.date : new Date());
       parts.push(`<h2>${speciesIcon(prof.code || B.species, 'sm')} ${esc(prof.name)} this ${season}</h2><p><strong>Depth:</strong> ${esc(prof.depth[season])}</p><p class="muted">${esc(prof.tips || '')}</p>`);
     }
-    parts.push(`<p class="muted small">The bite score blends solunar periods (moon overhead/underfoot, rise/set), moon phase, dawn/dusk, barometric trend, wind, cloud cover, precipitation, temperature swings and the season — weighted for the selected species. It is guidance, not a guarantee. Lightning = get off the water.</p>`);
+    parts.push(`<p class="muted small">The bite score blends a modeled surface water temperature (from 45 days of air temps, tuned to this lake's depth and size) against the species' preferred range, spawn windows and fall turnover; dawn/dusk and measured sunlight scaled by this lake's water clarity${B.ctx && B.ctx.clarity ? ` (${B.ctx.clarity.toFixed(0)} ft Secchi)` : ''}; barometric trend and fronts; wind for a lake this size; rain and storms; solunar periods and moon phase; the season; and your own catch history. Water temperature is an estimate, not a reading. Guidance, not a guarantee. Lightning = get off the water.</p>`);
     return parts.join('');
   }
 

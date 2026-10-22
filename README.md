@@ -73,6 +73,13 @@ Each hour starts at 50 and is adjusted by:
 | Light rain +4; rain −4; heavy rain −10; thunderstorms −20 | |
 | Air temperature drop >15 °F vs. yesterday | −10 (−5 for 8–15 °F); warming +3 |
 | Season | per-species monthly curve |
+| Modeled surface water temperature vs. the species' preferred range | +6 in range, down to −10 when too warm or too cold |
+| Spring spawn windows (crappie 55–66 °F, bass 58–68 °F, bluegill 65–75 °F, post-spawn walleye 48–58 °F…) | +3 to +6 while water is rising through the window |
+| Fall turnover (deep lake, surface cooling through the 50s) | −6 |
+| Water clarity (DNR Secchi depth) | scales the bright-sun penalty and low-light bonus: stronger on clear lakes, weaker on stained ones |
+| Lake size | wind chop counts for less on tiny lakes; 15+ mph on big water (5,000+ acres) adds −4 to −10 |
+
+Water temperature is modeled, not measured: 45 days of daily mean air temperature (Open-Meteo) are run through a lagged response whose speed depends on the lake's maximum depth and size (shallow lakes follow the air within days, big deep lakes lag by weeks), floored at freezing. Sunlight uses Open-Meteo's shortwave radiation when available, so sun angle and season are built in. Solunar and moon-phase weights are deliberately modest (max +12 and +6) because the evidence for them is thin.
 
 Species profiles in `js/species.js` multiply each factor (e.g. walleye care more about low light and chop, muskies about moon events, bass about cold fronts, catfish like night and rain). It is guidance, not a guarantee.
 
