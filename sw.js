@@ -1,5 +1,5 @@
 /* Fish Nasty — service worker: offline app shell + cached data */
-const VERSION = 'fn-v1.5.0';
+const VERSION = 'fn-v1.5.1';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/app.css',
   './js/config.js', './js/species.js', './js/dnr.js', './js/weather.js', './js/solunar.js', './js/forecast.js', './js/map.js', './js/ui.js', './js/views.js', './js/cloud.js', './js/app.js',
@@ -43,7 +43,7 @@ self.addEventListener('fetch', e => {
       if (hit && !isStale(hit, 30 * 24 * 3600 * 1000)) return hit;
       try {
         const res = await fetch(req);
-        if (res.ok && res.type !== 'opaque') { c.put(req, stamp(res.clone())); trimCache(TILE_CACHE, TILE_MAX); }
+        if (res.ok && res.type !== 'opaque') { const copy = await stamp(res.clone()); await c.put(req, copy); trimCache(TILE_CACHE, TILE_MAX); }
         return res;
       } catch (err) { return hit || Response.error(); }
     }));
