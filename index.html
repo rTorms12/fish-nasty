@@ -20,7 +20,7 @@
 <link rel="icon" href="icons/favicon-64.png" type="image/png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" crossorigin="">
-<link rel="stylesheet" href="css/app.css?v=1.6.0">
+<link rel="stylesheet" href="css/app.css?v=1.6.1">
 </head>
 <body>
 <div id="app">
@@ -40,8 +40,10 @@
 
   <section id="sheet" class="sheet half" aria-label="Lake details">
     <div class="sheet-handle" id="sheet-handle"><span></span></div>
+    <button class="sheet-close" data-action="sheet-close" title="Close panel" aria-label="Close panel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     <div class="sheet-body" id="sheet-body"></div>
   </section>
+  <button id="panel-open" class="hidden" data-action="sheet-open" title="Show panel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg><span>Panel</span></button>
 
   <div class="fabs" role="toolbar" aria-label="Map tools">
     <button id="fab-forecast" title="Bite forecast for this area"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16a8 8 0 0 1 16 0"/><path d="M12 16l3.5-5"/><circle cx="12" cy="16" r="1.4" fill="currentColor"/><path d="M4 20h16"/></svg><span>Bite</span></button>
@@ -78,16 +80,16 @@
   tryNext();
 })();
 </script>
-<script src="js/config.js?v=1.6.0"></script>
-<script src="js/species.js?v=1.6.0"></script>
-<script src="js/dnr.js?v=1.6.0"></script>
-<script src="js/weather.js?v=1.6.0"></script>
-<script src="js/solunar.js?v=1.6.0"></script>
-<script src="js/forecast.js?v=1.6.0"></script>
-<script src="js/map.js?v=1.6.0"></script>
-<script src="js/ui.js?v=1.6.0"></script>
-<script src="js/views.js?v=1.6.0"></script>
-<script src="js/cloud.js?v=1.6.0"></script>
-<script src="js/app.js?v=1.6.0"></script>
+<script src="js/config.js?v=1.6.1"></script>
+<script src="js/species.js?v=1.6.1"></script>
+<script src="js/dnr.js?v=1.6.1"></script>
+<script src="js/weather.js?v=1.6.1"></script>
+<script src="js/solunar.js?v=1.6.1"></script>
+<script src="js/forecast.js?v=1.6.1"></script>
+<script src="js/map.js?v=1.6.1"></script>
+<script src="js/ui.js?v=1.6.1"></script>
+<script src="js/views.js?v=1.6.1"></script>
+<script src="js/cloud.js?v=1.6.1"></script>
+<script src="js/app.js?v=1.6.1"></script>
 </body>
 </html>

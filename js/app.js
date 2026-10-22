@@ -58,8 +58,15 @@
 
   /* ---------- sheet ---------- */
   const sheet = $('#sheet');
-  const SNAPS = ['collapsed', 'half', 'full'];
-  function setSheet(state) { sheet.classList.remove(...SNAPS); sheet.classList.add(state); sheet.style.height = ''; }
+  const SNAPS = ['collapsed', 'half', 'full', 'custom'];
+  function setSheet(state) { sheet.classList.remove(...SNAPS); sheet.classList.add(state); sheet.style.height = ''; showPanel(); }
+  const maxSheetHeight = () => { const tb = $('.topbar').getBoundingClientRect(); return Math.max(120, window.innerHeight - tb.bottom - 12); };
+  function showPanel() { document.getElementById('app').classList.remove('panel-closed'); $('#panel-open').classList.add('hidden'); }
+  function closePanel() {
+    if (isMobile()) { sheet.classList.remove(...SNAPS); sheet.classList.add('collapsed'); sheet.style.height = ''; }
+    else { document.getElementById('app').classList.add('panel-closed'); $('#panel-open').classList.remove('hidden'); }
+    FN.map.getMap().invalidateSize();
+  }
   (function dragSetup() {
     const handle = $('#sheet-handle');
     let startY = 0, startH = 0, dragging = false, moved = false;
@@ -71,21 +78,21 @@
     handle.addEventListener('pointermove', e => {
       if (!dragging) return;
       const dy = e.clientY - startY; if (Math.abs(dy) > 4) moved = true;
-      const h = U.clamp(startH - dy, 60, window.innerHeight * 0.94);
+      const h = U.clamp(startH - dy, 60, maxSheetHeight());
       sheet.style.height = h + 'px';
     });
     const end = () => {
       if (!dragging) return; dragging = false; sheet.classList.remove('dragging');
-      const h = sheet.getBoundingClientRect().height, vh = window.innerHeight;
-      if (!moved) { // tap cycles
+      const h = sheet.getBoundingClientRect().height, max = maxSheetHeight();
+      if (!moved) { // tap on the bar: collapsed -> half -> full -> half
         const cur = SNAPS.find(s => sheet.classList.contains(s)) || 'half';
-        setSheet(cur === 'collapsed' ? 'half' : cur === 'half' ? 'full' : 'collapsed');
+        setSheet(cur === 'collapsed' ? 'half' : cur === 'half' ? 'full' : 'half');
         return;
       }
-      const targets = { collapsed: 72, half: vh * 0.46, full: vh * 0.9 };
-      let best = 'half', bd = Infinity;
-      for (const [k, v] of Object.entries(targets)) { const d = Math.abs(v - h); if (d < bd) { bd = d; best = k; } }
-      setSheet(best);
+      // Leave it exactly where it was dropped; snap only at the two ends
+      if (h < 110) setSheet('collapsed');
+      else if (h > max - 24) setSheet('full');
+      else { sheet.classList.remove(...SNAPS); sheet.classList.add('custom'); sheet.style.height = h + 'px'; }
     };
     handle.addEventListener('pointerup', end); handle.addEventListener('pointercancel', end);
   })();
@@ -256,7 +263,7 @@
     if (event === 'PASSWORD_RECOVERY') { S.view = 'account'; setAuthMsg('ok', 'You are signed in — set a new password below.'); render(); return; }
     if (S.user && (!was || was.id !== S.user.id || event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
       try { S.profile = await FN.cloud.getProfile(true); } catch (e) { S.profile = null; }
-      if (S.view === 'account' && (event === 'SIGNED_IN' || S.welcome)) { S.welcome = false; U.store.set('fn.welcome', true); S.view = S.prevView && S.prevView !== 'account' ? S.prevView : 'home'; if (event === 'SIGNED_IN') toast(`Signed in as ${(S.profile && S.profile.display_name) || S.user.email}`); }
+      if (S.view === 'account' && (event === 'SIGNED_IN' || S.welcome)) { S.welcome = false; U.store.set('fn.welcome', true); S.view = S.prevView && S.prevView !== 'account' ? S.prevView : 'home'; if (event === 'SIGNED_IN') toast(`Signed in as ${(S.profile && S.profile.display_name) || S.user.email}`); if (isMobile()) setSheet('half'); }
       rerender();
       syncAll().catch(e => console.warn('sync failed', e));
       loadBuddies(true).catch(() => {});
@@ -598,6 +605,7 @@
       return;
     }
     const a = el.dataset.action;
+    if (a !== 'sheet-close' && a !== 'sheet-open') showPanel();
     switch (a) {
       case 'open-lake': openLake(el.dataset.id); break;
       case 'home': goHome(); break;
@@ -619,7 +627,9 @@
       case 'top-mode': S.topMode = el.dataset.mode; U.store.set('fn.topMode', S.topMode); rerender(); break;
       case 'account': if (S.view !== 'account') S.prevView = S.view; S.view = 'account'; setAuthMsg(null); render(); if (isMobile()) setSheet('full'); break;
       case 'auth-mode': S.authMode = el.dataset.mode; setAuthMsg(null); rerender(); break;
-      case 'welcome-skip': S.welcome = false; S.welcomeSeen = true; U.store.set('fn.welcome', true); S.view = 'home'; render(); break;
+      case 'welcome-skip': S.welcome = false; S.welcomeSeen = true; U.store.set('fn.welcome', true); S.view = 'home'; render(); if (isMobile()) setSheet('half'); break;
+      case 'sheet-close': closePanel(); break;
+      case 'sheet-open': showPanel(); FN.map.getMap().invalidateSize(); break;
       case 'signout': FN.cloud.signOut().then(() => toast('Signed out')); break;
       case 'sync-now': syncAll().then(() => toast('Synced')).catch(e => toast('Sync failed: ' + e.message)); break;
       case 'catches': S.prevView = 'home'; S.view = 'catches'; render(); if (isMobile()) setSheet('full'); break;
