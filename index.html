@@ -10,11 +10,17 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Fish Nasty">
+<link rel="preconnect" href="https://server.arcgisonline.com" crossorigin>
+<link rel="preconnect" href="https://enterprise.gisdata.mn.gov" crossorigin>
+<link rel="preconnect" href="https://maps.dnr.state.mn.us" crossorigin>
+<link rel="preconnect" href="https://api.open-meteo.com" crossorigin>
+<link rel="preconnect" href="https://kmfyzjasrtpgdjcybqtr.supabase.co" crossorigin>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" crossorigin="">
-<link rel="stylesheet" href="css/app.css?v=1.4.4">
+<link rel="stylesheet" href="css/app.css?v=1.5.0">
 </head>
 <body>
 <div id="app">
@@ -54,27 +60,31 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin=""></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.9.0/suncalc.min.js" crossorigin=""></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js" crossorigin=""></script>
 <script>
-// If the first CDN is blocked (content blocker, DNS filter), try another before giving up on account features
-if (!window.supabase) {
-  var _s = document.createElement('script');
-  _s.src = 'https://unpkg.com/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js';
-  _s.onload = function () { if (window.supabase) window.dispatchEvent(new Event('supabase-ready')); else { window.supabaseLoadFailed = 'error'; window.dispatchEvent(new Event('supabase-failed')); } };
-  _s.onerror = function () { window.supabaseLoadFailed = true; window.dispatchEvent(new Event('supabase-failed')); };
-  document.head.appendChild(_s);
-}
+// Sign-in library loads in the background so the map and lake pages are not held up by it
+(function () {
+  var srcs = ['https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js', 'https://unpkg.com/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js'];
+  var i = 0;
+  function tryNext() {
+    if (i >= srcs.length) { window.supabaseLoadFailed = true; window.dispatchEvent(new Event('supabase-failed')); return; }
+    var s = document.createElement('script'); s.async = true; s.src = srcs[i++];
+    s.onload = function () { if (window.supabase) window.dispatchEvent(new Event('supabase-ready')); else { window.supabaseLoadFailed = 'error'; window.dispatchEvent(new Event('supabase-failed')); } };
+    s.onerror = tryNext;
+    document.head.appendChild(s);
+  }
+  tryNext();
+})();
 </script>
-<script src="js/config.js?v=1.4.4"></script>
-<script src="js/species.js?v=1.4.4"></script>
-<script src="js/dnr.js?v=1.4.4"></script>
-<script src="js/weather.js?v=1.4.4"></script>
-<script src="js/solunar.js?v=1.4.4"></script>
-<script src="js/forecast.js?v=1.4.4"></script>
-<script src="js/map.js?v=1.4.4"></script>
-<script src="js/ui.js?v=1.4.4"></script>
-<script src="js/views.js?v=1.4.4"></script>
-<script src="js/cloud.js?v=1.4.4"></script>
-<script src="js/app.js?v=1.4.4"></script>
+<script src="js/config.js?v=1.5.0"></script>
+<script src="js/species.js?v=1.5.0"></script>
+<script src="js/dnr.js?v=1.5.0"></script>
+<script src="js/weather.js?v=1.5.0"></script>
+<script src="js/solunar.js?v=1.5.0"></script>
+<script src="js/forecast.js?v=1.5.0"></script>
+<script src="js/map.js?v=1.5.0"></script>
+<script src="js/ui.js?v=1.5.0"></script>
+<script src="js/views.js?v=1.5.0"></script>
+<script src="js/cloud.js?v=1.5.0"></script>
+<script src="js/app.js?v=1.5.0"></script>
 </body>
 </html>

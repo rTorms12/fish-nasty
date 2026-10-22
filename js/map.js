@@ -14,19 +14,23 @@ FN.map = (() => {
   const DynamicLayer = L.TileLayer.extend({
     initialize(baseUrl, options) {
       this._base = baseUrl;
-      L.TileLayer.prototype.initialize.call(this, '', Object.assign({ tileSize: 512, zoomOffset: -1, updateWhenIdle: true, keepBuffer: 1 }, options));
+      L.TileLayer.prototype.initialize.call(this, '', Object.assign({
+        tileSize: 512, zoomOffset: -1, updateWhenIdle: true, updateWhenZooming: false, updateInterval: 150, keepBuffer: 2,
+        crossOrigin: 'anonymous' // CORS responses can be cached by the service worker
+      }, options));
     },
     getTileUrl(coords) {
       const b = this._tileCoordsToBounds(coords);
       const sw = L.CRS.EPSG3857.project(b.getSouthWest());
       const ne = L.CRS.EPSG3857.project(b.getNorthEast());
-      const scale = L.Browser.retina ? 2 : 1;
-      const px = this.getTileSize().x * scale;
+      // Render scale: fills do not need retina resolution; lines get 1.5x on retina screens
+      const scale = L.Browser.retina ? (this.options.renderScale || 1.5) : 1;
+      const px = Math.round(this.getTileSize().x * scale);
       const p = new URLSearchParams({
         bbox: `${sw.x},${sw.y},${ne.x},${ne.y}`, bboxSR: '3857', imageSR: '3857',
-        size: `${px},${px}`, dpi: String(96 * scale), format: 'png32', transparent: 'true', f: 'image'
+        size: `${px},${px}`, dpi: String(Math.round(96 * scale)), format: this.options.format || 'png32', transparent: 'true', f: 'image'
       });
-      const params = typeof this.options.params === 'function' ? this.options.params() : (this.options.params || {});
+      const params = typeof this.options.params === 'function' ? this.options.params(coords.z + (this.options.zoomOffset || 0) * -1) : (this.options.params || {});
       for (const [k, v] of Object.entries(params)) p.set(k, typeof v === 'string' ? v : JSON.stringify(v));
       return `${this._base}/${this.options.op || 'export'}?${p.toString()}`;
     }
@@ -41,26 +45,34 @@ FN.map = (() => {
     return `abs_depth >= ${depthMin} AND abs_depth <= ${depthMax}`;
   }
 
-  function contourLayers() {
+  function contourLayers(zoom) {
     const def = depthDef();
+    const z = zoom || C.map.contourMinZoom;
     const layers = [];
     layers.push({
       id: 11, source: mapLayer(1),
-      drawingInfo: { renderer: { type: 'simple', symbol: { type: 'esriSFS', style: 'esriSFSNull', outline: sls([255, 255, 255, 190], 1.2) } } }
+      drawingInfo: { renderer: { type: 'simple', symbol: { type: 'esriSFS', style: 'esriSFSNull', outline: sls([255, 255, 255, 190], z >= 12 ? 1.2 : 0.8) } } }
     });
     if (def) layers.push({ id: 12, source: mapLayer(0), drawingInfo: { renderer: { type: 'simple', symbol: sls([200, 220, 240, 90], 0.8) } } });
-    const casing = { id: 13, source: mapLayer(0), drawingInfo: { renderer: { type: 'simple', symbol: sls([6, 18, 36, 180], 3.2) } } };
     const colored = {
       id: 14, source: mapLayer(0),
       drawingInfo: {
         renderer: {
           type: 'classBreaks', field: 'abs_depth', minValue: 0,
-          classBreakInfos: C.depthBands.map(b => ({ classMaxValue: b.max, symbol: sls([...b.rgb, 255], 1.5) }))
+          classBreakInfos: C.depthBands.map(b => ({ classMaxValue: b.max, symbol: sls([...b.rgb, 255], z >= 12 ? 1.5 : 1.1) }))
         }
       }
     };
-    if (def) { casing.definitionExpression = def; colored.definitionExpression = def; }
-    layers.push(casing, colored);
+    if (def) colored.definitionExpression = def;
+    // Dark casing under the colored lines only once zoomed in (it doubles the server's drawing work)
+    if (z >= 12) {
+      const casing = { id: 13, source: mapLayer(0), drawingInfo: { renderer: { type: 'simple', symbol: sls([6, 18, 36, 180], 3.2) } } };
+      if (def) casing.definitionExpression = def;
+      layers.push(casing);
+    }
+    layers.push(colored);
+    // Depth numbers ride along in the same request from zoom 13 (no separate label layer / request)
+    if (settings.labels && z >= C.map.labelMinZoom) layers.push(...labelLayers());
     return layers;
   }
 
@@ -89,23 +101,24 @@ FN.map = (() => {
   function init(el) {
     map = L.map(el, {
       center: C.map.center, zoom: C.map.zoom, minZoom: C.map.minZoom, maxZoom: C.map.maxZoom,
-      zoomControl: false, attributionControl: true, worldCopyJump: false
+      zoomControl: false, attributionControl: true, worldCopyJump: false,
+      zoomSnap: 0.5, wheelDebounceTime: 60, inertiaDeceleration: 2500, fadeAnimation: false, markerZoomAnimation: false
     });
     map.attributionControl.setPrefix('');
 
+    const fast = { maxZoom: 19, updateWhenZooming: false, keepBuffer: 3 };
     base.sat = L.layerGroup([
-      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Imagery © Esri' }),
-      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, opacity: 0.9 })
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', Object.assign({ attribution: 'Imagery © Esri' }, fast)),
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', Object.assign({ opacity: 0.9 }, fast))
     ]);
     base.topo = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Topo © Esri' });
     base.street = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' });
     base.dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19, subdomains: 'abcd', attribution: '© OpenStreetMap, © CARTO' });
 
-    overlays.relief = new DynamicLayer(C.gis.relief, { op: 'exportImage', minZoom: 9, opacity: settings.opacity, params: { noData: '255', noDataInterpretation: 'esriNoDataMatchAll' }, attribution: 'Depth data © MN DNR' });
-    overlays.contours = new DynamicLayer(C.gis.bathy, { minZoom: C.map.contourMinZoom, opacity: 1, params: () => ({ dynamicLayers: contourLayers() }) });
-    overlays.labels = new DynamicLayer(C.gis.bathy, { minZoom: C.map.labelMinZoom, opacity: 1, params: () => ({ dynamicLayers: labelLayers() }) });
+    overlays.relief = new DynamicLayer(C.gis.relief, { op: 'exportImage', minZoom: 9, opacity: settings.opacity, renderScale: 1, format: 'png8', params: { noData: '255', noDataInterpretation: 'esriNoDataMatchAll' }, attribution: 'Depth data © MN DNR' });
+    overlays.contours = new DynamicLayer(C.gis.bathy, { minZoom: C.map.contourMinZoom, opacity: 1, renderScale: 1.5, params: z => ({ dynamicLayers: contourLayers(z) }) });
     overlays.outlines = new DynamicLayer(C.gis.bathy, {
-      minZoom: 8, maxZoom: C.map.contourMinZoom - 1,
+      minZoom: 8, maxZoom: C.map.contourMinZoom - 1, renderScale: 1, format: 'png8',
       params: { dynamicLayers: [{ id: 21, source: mapLayer(1), drawingInfo: { renderer: { type: 'simple', symbol: { type: 'esriSFS', style: 'esriSFSSolid', color: [111, 179, 236, 70], outline: sls([200, 230, 255, 220], 1) } } } }] }
     });
 
@@ -124,7 +137,7 @@ FN.map = (() => {
   function applySettings() {
     for (const k of Object.keys(base)) if (map.hasLayer(base[k])) map.removeLayer(base[k]);
     (base[settings.basemap] || base.sat).addTo(map);
-    const want = { outlines: true, relief: settings.relief, contours: settings.contours, labels: settings.contours && settings.labels };
+    const want = { outlines: true, relief: settings.relief, contours: settings.contours };
     for (const [k, on] of Object.entries(want)) {
       const l = overlays[k];
       if (on && !map.hasLayer(l)) l.addTo(map);
@@ -136,10 +149,10 @@ FN.map = (() => {
   }
 
   function update(patch) {
-    const depthChanged = ('depthMin' in patch) || ('depthMax' in patch);
+    const redraw = ('depthMin' in patch) || ('depthMax' in patch) || ('labels' in patch);
     Object.assign(settings, patch);
     applySettings();
-    if (depthChanged) { overlays.contours.redraw(); overlays.labels.redraw(); }
+    if (redraw) overlays.contours.redraw();
   }
 
   function showLake(lake, { fit = true } = {}) {

@@ -29,7 +29,7 @@ FN.ui = (() => {
     const emoji = p ? p.icon : '';
     const slug = SPECIES_IMG[code];
     if (!slug) return `<span class="sp-emoji">${emoji}</span>`;
-    return `<span class="sp-pic ${size}"><img src="img/species/${slug}.jpg" alt="${esc(p ? p.name : code)}" onerror="this.parentNode.classList.add('err'); this.remove()"><span class="sp-emoji">${emoji}</span></span>`;
+    return `<span class="sp-pic ${size}"><img src="img/species/${slug}${size === 'lg' ? '' : '-sm'}.jpg" alt="${esc(p ? p.name : code)}" decoding="async" onerror="this.parentNode.classList.add('err'); this.remove()"><span class="sp-emoji">${emoji}</span></span>`;
   };
   const scoreRing = (score, size = 56) => {
     const r = (size - 8) / 2, c = 2 * Math.PI * r, off = c * (1 - score / 100);

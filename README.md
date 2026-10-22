@@ -134,6 +134,12 @@ js/cloud.js           Supabase client (auth, sync, catches, buddies, lake metric
 icons/                app icons
 ```
 
+## Performance notes
+
+- Depth tiles are rendered live by the state ArcGIS server (no CDN), so they are the slowest thing in the app. The app asks for one combined image per tile (contours, outline and depth labels together), at 1× resolution for the shaded fill and 1.5× for lines, and skips requests while a pinch-zoom is in progress. The service worker keeps the last ~600 depth tiles on the device for 30 days, so places you've looked at before draw instantly and work offline.
+- DNR survey, stocking and access data are served from the device cache first and refreshed in the background (7-day window); weather is always fetched fresh when online.
+- The panel re-renders at most once per animation frame, the sign-in library loads in the background, and the page preconnects to every data host at startup.
+
 ## Notes and limits
 
 - Depth data is the DNR's bathymetry and is **not for navigation**. Not every lake has a depth map (about 4,500 do); un-mapped lakes still show surveys and stocking.

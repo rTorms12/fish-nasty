@@ -36,9 +36,16 @@
       : (S.view === 'lake' && S.lake ? FN.ui.lake(S) : FN.ui.home(S));
     if (S._keepScroll) body.scrollTop = scroll; else body.scrollTop = 0;
     S._keepScroll = false;
-    hydratePhotos();
+    if (body.querySelector('img[data-photo]')) setTimeout(hydratePhotos, 0);
   }
-  function rerender() { S._keepScroll = true; render(); }
+  // Several data loads can land within a few milliseconds of each other; rebuild the panel once per frame
+  let renderQueued = false;
+  function rerender() {
+    S._keepScroll = true;
+    if (renderQueued) return;
+    renderQueued = true;
+    requestAnimationFrame(() => { renderQueued = false; if (S._keepScroll) render(); });
+  }
 
   function toast(msg, ms = 2600) {
     const t = $('#toast'); t.textContent = msg; t.classList.remove('hidden');
