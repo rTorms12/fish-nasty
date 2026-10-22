@@ -140,6 +140,7 @@ FN.map = (() => {
   function applySettings() {
     for (const k of Object.keys(base)) if (map.hasLayer(base[k])) map.removeLayer(base[k]);
     (base[settings.basemap] || base.sat).addTo(map);
+    map.getContainer().classList.toggle('basemap-light', settings.basemap === 'street' || settings.basemap === 'topo');
     const want = { outlines: true, relief: settings.relief, contours: settings.contours };
     for (const [k, on] of Object.entries(want)) {
       const l = overlays[k];
@@ -211,18 +212,19 @@ FN.map = (() => {
     if (z < C.map.nameMinZoom || !settings.names) return;
     const view = map.getBounds().pad(0.15), minA = labelMinAcres(z);
     const size = z >= 14 ? 'lg' : z >= 12 ? 'md' : 'sm';
-    const pxW = size === 'lg' ? 9.5 : size === 'md' ? 8 : 7, pxH = size === 'lg' ? 30 : 26;
+    const pxW = size === 'lg' ? 9.5 : size === 'md' ? 8 : 7, pxH = size === 'lg' ? 64 : size === 'md' ? 56 : 48;
     // Biggest lakes first; skip a name whose box would overlap one already placed
     const placed = [];
     const cands = [...labelCache.values()].filter(l => l.acres >= minA && view.contains([l.lat, l.lon]) && !/^unnamed/i.test(l.name)).sort((a, b) => b.acres - a.acres);
     for (const l of cands) {
       const p = map.latLngToLayerPoint([l.lat, l.lon]);
-      const w = l.name.length * pxW + 20;
+      const w = Math.min(132, l.name.length * pxW + 20);
       if (placed.some(q => Math.abs(q.x - p.x) < (q.w + w) / 2 && Math.abs(q.y - p.y) < pxH)) continue;
       placed.push({ x: p.x, y: p.y, w });
       const isCurrent = currentDow && l.dow && U.dowPrefix(l.dow) === U.dowPrefix(currentDow);
+      const badge = l.dow ? `<i class="bd"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M3 12s4-6 10-6c4 0 8 6 8 6s-4 6-8 6c-6 0-10-6-10-6z"/><path d="M3 12l-1-4M3 12l-1 4"/><circle cx="15.5" cy="11" r="1" fill="currentColor"/></svg></i>` : '';
       const m = L.marker([l.lat, l.lon], {
-        icon: L.divIcon({ className: `lake-label ${size}${isCurrent ? ' current' : ''}`, html: `<span>${U.esc(l.name)}</span>`, iconSize: [0, 0], iconAnchor: [0, 0] }),
+        icon: L.divIcon({ className: `lake-label ${size}${isCurrent ? ' current' : ''}${l.dow ? '' : ' nobadge'}`, html: `<div class="ll">${badge}<span>${U.esc(l.name)}</span></div>`, iconSize: [0, 0], iconAnchor: [0, 0] }),
         interactive: !!l.dow, keyboard: false, zIndexOffset: -200, title: l.dow ? `${l.name} — tap for lake info` : l.name
       });
       if (l.dow) m.on('click', () => { for (const fn of listeners.label) fn(l); });

@@ -20,7 +20,7 @@
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" crossorigin="">
-<link rel="stylesheet" href="css/app.css?v=1.5.2">
+<link rel="stylesheet" href="css/app.css?v=1.5.3">
 </head>
 <body>
 <div id="app">
@@ -43,13 +43,15 @@
     <div class="sheet-body" id="sheet-body"></div>
   </section>
 
-  <div class="fabs">
+  <div class="fabs" role="toolbar" aria-label="Map tools">
+    <button id="fab-pin" title="Drop a pin"><svg viewBox="0 0 24 24"><path d="M12 22s7-7.5 7-13a7 7 0 1 0-14 0c0 5.5 7 13 7 13z" fill="currentColor"/><circle cx="12" cy="9" r="2.6" fill="#0b1a26"/></svg><span>Pin</span></button>
+    <button id="fab-locate" title="My location"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/></svg><span>Me</span></button>
+    <button id="fab-layers" title="Map layers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3.5l8.5 4.5L12 12.5 3.5 8z" fill="currentColor" fill-opacity=".25"/><path d="M3.5 12.5L12 17l8.5-4.5"/><path d="M3.5 16.5L12 21l8.5-4.5"/></svg><span>Layers</span></button>
+    <button id="fab-legend" title="Depth key"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="3.4" rx="1.2" fill="#a8d4f5"/><rect x="4" y="9.2" width="16" height="3.4" rx="1.2" fill="#3f8fdf"/><rect x="4" y="14.4" width="16" height="3.4" rx="1.2" fill="#1f54a3"/><rect x="4" y="19.6" width="16" height="1.6" rx=".8" fill="#0a1b47"/></svg><span>Depths</span></button>
+  </div>
+  <div class="zoomctl">
     <button id="fab-zoomin" title="Zoom in" aria-label="Zoom in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg></button>
     <button id="fab-zoomout" title="Zoom out" aria-label="Zoom out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/></svg></button>
-    <button id="fab-pin" title="Drop a pin" aria-label="Drop a pin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 22s7-7.5 7-13a7 7 0 1 0-14 0c0 5.5 7 13 7 13z"/><circle cx="12" cy="9" r="2.5"/></svg></button>
-    <button id="fab-locate" title="My location" aria-label="My location"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></svg></button>
-    <button id="fab-layers" title="Map layers" aria-label="Map layers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/><path d="M3 17l9 5 9-5"/></svg></button>
-    <button id="fab-legend" title="Depth legend" aria-label="Depth legend"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg></button>
   </div>
   <div id="layers-panel" class="panel hidden"></div>
   <div id="pin-menu" class="panel pin-menu hidden"></div>
@@ -75,16 +77,16 @@
   tryNext();
 })();
 </script>
-<script src="js/config.js?v=1.5.2"></script>
-<script src="js/species.js?v=1.5.2"></script>
-<script src="js/dnr.js?v=1.5.2"></script>
-<script src="js/weather.js?v=1.5.2"></script>
-<script src="js/solunar.js?v=1.5.2"></script>
-<script src="js/forecast.js?v=1.5.2"></script>
-<script src="js/map.js?v=1.5.2"></script>
-<script src="js/ui.js?v=1.5.2"></script>
-<script src="js/views.js?v=1.5.2"></script>
-<script src="js/cloud.js?v=1.5.2"></script>
-<script src="js/app.js?v=1.5.2"></script>
+<script src="js/config.js?v=1.5.3"></script>
+<script src="js/species.js?v=1.5.3"></script>
+<script src="js/dnr.js?v=1.5.3"></script>
+<script src="js/weather.js?v=1.5.3"></script>
+<script src="js/solunar.js?v=1.5.3"></script>
+<script src="js/forecast.js?v=1.5.3"></script>
+<script src="js/map.js?v=1.5.3"></script>
+<script src="js/ui.js?v=1.5.3"></script>
+<script src="js/views.js?v=1.5.3"></script>
+<script src="js/cloud.js?v=1.5.3"></script>
+<script src="js/app.js?v=1.5.3"></script>
 </body>
 </html>

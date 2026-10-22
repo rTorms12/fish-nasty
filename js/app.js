@@ -679,6 +679,8 @@
   $('#fab-pin').addEventListener('click', () => { const m = $('#pin-menu'); if (m.classList.contains('hidden')) { m.innerHTML = FN.ui.pinMenu(); m.classList.remove('hidden'); $('#layers-panel').classList.add('hidden'); $('#legend').classList.add('hidden'); } else closePinMenu(); });
   $('#fab-zoomin').addEventListener('click', () => FN.map.getMap().zoomIn());
   $('#fab-zoomout').addEventListener('click', () => FN.map.getMap().zoomOut());
+  const syncToolState = () => { $('#fab-layers').classList.toggle('on', !$('#layers-panel').classList.contains('hidden')); $('#fab-legend').classList.toggle('on', !$('#legend').classList.contains('hidden')); $('#fab-pin').classList.toggle('on', !$('#pin-menu').classList.contains('hidden') || S.placeMode); };
+  new MutationObserver(syncToolState).observe(document.getElementById('app'), { attributes: true, subtree: true, attributeFilter: ['class'] });
   $('#fab-layers').addEventListener('click', () => { renderLayers(); $('#layers-panel').classList.toggle('hidden'); $('#legend').classList.add('hidden'); closePinMenu(); });
   $('#fab-legend').addEventListener('click', () => { $('#legend').classList.toggle('hidden'); $('#layers-panel').classList.add('hidden'); closePinMenu(); });
   function renderLayers() { $('#layers-panel').innerHTML = FN.ui.layersPanel(FN.map.getSettings()); }
