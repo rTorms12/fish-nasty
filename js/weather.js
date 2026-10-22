@@ -25,9 +25,9 @@ FN.weather = (() => {
     if (hit && Date.now() - hit.t < 30 * 60 * 1000) return hit.data;
     const p = new URLSearchParams({
       latitude: lat.toFixed(4), longitude: lon.toFixed(4),
-      hourly: 'temperature_2m,apparent_temperature,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover,precipitation,precipitation_probability,weather_code,is_day,shortwave_radiation',
+      hourly: 'temperature_2m,apparent_temperature,relative_humidity_2m,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover,precipitation,precipitation_probability,weather_code,is_day,shortwave_radiation',
       daily: 'sunrise,sunset,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,weather_code',
-      current: 'temperature_2m,apparent_temperature,wind_speed_10m,wind_direction_10m,wind_gusts_10m,pressure_msl,cloud_cover,weather_code,precipitation,is_day',
+      current: 'temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,pressure_msl,cloud_cover,weather_code,precipitation,is_day',
       temperature_unit: 'fahrenheit', wind_speed_unit: 'mph', precipitation_unit: 'inch',
       timezone: C.tz, past_days: '2', forecast_days: '8'
     });
@@ -38,7 +38,7 @@ FN.weather = (() => {
     const h = j.hourly;
     const hours = h.time.map((t, i) => ({
       t: U.parseLocal(t),
-      temp: h.temperature_2m[i], feels: h.apparent_temperature[i],
+      temp: h.temperature_2m[i], feels: h.apparent_temperature[i], humidity: h.relative_humidity_2m ? h.relative_humidity_2m[i] : null,
       pressure: h.pressure_msl[i],
       wind: h.wind_speed_10m[i], windDir: h.wind_direction_10m[i], gust: h.wind_gusts_10m[i],
       cloud: h.cloud_cover[i], precip: h.precipitation[i], pop: h.precipitation_probability[i],
@@ -60,7 +60,7 @@ FN.weather = (() => {
       current: {
         t: c.time ? U.parseLocal(c.time) : new Date(),
         temp: c.temperature_2m, feels: c.apparent_temperature, wind: c.wind_speed_10m, windDir: c.wind_direction_10m,
-        gust: c.wind_gusts_10m, pressure: c.pressure_msl, cloud: c.cloud_cover, code: c.weather_code, precip: c.precipitation, isDay: c.is_day === 1
+        gust: c.wind_gusts_10m, humidity: c.relative_humidity_2m, pressure: c.pressure_msl, cloud: c.cloud_cover, code: c.weather_code, precip: c.precipitation, isDay: c.is_day === 1
       },
       hours, days
     };
@@ -86,5 +86,25 @@ FN.weather = (() => {
     return data;
   }
 
-  return { forecast, history, describe, hPaToInHg };
+  // Active National Weather Service alerts for a point (warnings, watches, advisories). Never blocks: returns [] on any failure.
+  const alertCache = new Map();
+  async function alerts(lat, lon) {
+    const key = `${lat.toFixed(2)},${lon.toFixed(2)}`;
+    const hit = alertCache.get(key);
+    if (hit && Date.now() - hit.t < 10 * 60 * 1000) return hit.data;
+    try {
+      const r = await fetch(`https://api.weather.gov/alerts/active?point=${lat.toFixed(4)},${lon.toFixed(4)}`, { headers: { Accept: 'application/geo+json' } });
+      if (!r.ok) throw new Error('alerts ' + r.status);
+      const j = await r.json();
+      const rank = { Extreme: 0, Severe: 1, Moderate: 2, Minor: 3, Unknown: 4 };
+      const data = (j.features || []).map(f => f.properties || {}).map(p => ({
+        id: p.id, event: p.event || 'Weather alert', headline: p.headline || '', severity: p.severity || 'Unknown', urgency: p.urgency || '',
+        onset: p.onset || p.effective || null, ends: p.ends || p.expires || null, description: p.description || '', instruction: p.instruction || '', area: p.areaDesc || '', sender: p.senderName || ''
+      })).sort((a, b) => (rank[a.severity] ?? 4) - (rank[b.severity] ?? 4));
+      alertCache.set(key, { t: Date.now(), data });
+      return data;
+    } catch (e) { return hit ? hit.data : []; }
+  }
+
+  return { forecast, history, describe, hPaToInHg, alerts };
 })();

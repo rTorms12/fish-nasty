@@ -144,6 +144,33 @@ select { font: inherit; background: var(--panel-2); color: var(--text); border: 
 .links { margin-top: 14px; }
 .ext { display: inline-flex; align-items: center; gap: 4px; }
 .ext svg { width: 14px; height: 14px; }
+/* weather page */
+.wx-now .big-temp { font-size: 52px; font-weight: 800; letter-spacing: -.03em; line-height: 1; } .wx-now .big-temp small { font-size: 20px; font-weight: 600; color: var(--muted); margin-left: 2px; }
+.wx-now .wx-desc { font-size: 18px; font-weight: 700; }
+.wx-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.wx-cell { background: var(--panel-2); border-radius: 12px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; }
+.wx-cell .l { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; }
+.wx-cell b { font-size: 15px; display: flex; align-items: center; gap: 4px; } .wx-cell .s { font-size: 12px; color: var(--muted); }
+.warrow { width: 16px; height: 16px; display: inline-block; vertical-align: -3px; color: var(--accent); flex: none; }
+.wx-hours { display: flex; gap: 6px; overflow-x: auto; padding: 4px 16px 10px; margin: 0 -16px; scrollbar-width: none; } .wx-hours::-webkit-scrollbar { display: none; }
+.wx-hour { flex: none; width: 58px; background: var(--panel-2); border-radius: 12px; padding: 8px 4px; text-align: center; display: flex; flex-direction: column; gap: 3px; align-items: center; }
+.wx-hour.now { background: var(--panel-3); box-shadow: inset 0 0 0 1px var(--accent); }
+.wx-hour .t { font-size: 11.5px; color: var(--muted); font-weight: 700; } .wx-hour .ic { font-size: 20px; line-height: 1.2; } .wx-hour .tp { font-weight: 800; font-size: 15px; }
+.wx-hour .wd { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 2px; } .wx-hour .wd .warrow { width: 12px; height: 12px; }
+.wx-hour .pp { font-size: 11px; color: var(--muted); min-height: 14px; } .wx-hour .pp.wet { color: #7fc8ff; font-weight: 700; }
+.wx-days { padding: 4px 12px; }
+.wx-day { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; } .wx-day:last-child { border-bottom: 0; }
+.wx-day .dn { width: 54px; font-weight: 700; flex: none; } .wx-day .dn .s { display: block; font-weight: 500; }
+.wx-day .ic { font-size: 22px; flex: none; width: 30px; text-align: center; } .wx-day .s { font-size: 12px; color: var(--muted); }
+.wx-day .hl { text-align: right; flex: none; } .wx-day .hl b { font-size: 16px; display: block; } .wx-day .hl span { color: var(--muted); font-size: 13px; }
+/* NWS alerts */
+.alert { border-radius: 14px; border: 1px solid var(--line); background: var(--panel-2); margin: 6px 0; overflow: hidden; border-left: 5px solid #7fc8ff; }
+.alert-head { display: flex; width: 100%; gap: 10px; align-items: center; text-align: left; border: 0; background: transparent; color: var(--text); padding: 10px 12px; }
+.alert .ai, .alert-banner .ai { font-size: 20px; flex: none; } .alert-head .small, .alert-banner .small { display: block; color: var(--muted); font-size: 12.5px; }
+.alert .adesc { padding: 0 12px 12px; font-size: 13.5px; white-space: normal; } .alert .ainst { margin-top: 8px; font-weight: 600; }
+.alert-banner { display: flex; width: 100%; gap: 10px; align-items: center; text-align: left; border: 0; border-left: 5px solid #7fc8ff; border-radius: 14px; background: var(--panel-2); color: var(--text); padding: 10px 12px; margin: 0 0 10px; }
+.sev-extreme { border-left-color: #ff5a5a !important; background: rgba(255,90,90,.12) !important; } .sev-severe { border-left-color: #ff9d3b !important; background: rgba(255,157,59,.12) !important; } .sev-moderate { border-left-color: #ffd34d !important; } .sev-minor { border-left-color: #7fc8ff !important; }
+.switch.sub { padding-left: 30px; } .radar-note { margin: 0 0 4px 30px; }
 .badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12.5px; font-weight: 800; color: #04141f; }
 .badge.r1 { background: var(--r1); color: #e8f1f8; } .badge.r2 { background: var(--r2); color: #e8f1f8; } .badge.r3 { background: var(--r3); } .badge.r4 { background: var(--r4); }
 .loading { display: flex; gap: 10px; align-items: center; color: var(--muted); padding: 16px 4px; }

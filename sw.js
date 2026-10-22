@@ -1,5 +1,5 @@
 /* Fish Nasty — service worker: offline app shell + cached data */
-const VERSION = 'fn-v1.9.4';
+const VERSION = 'fn-v1.10.0';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/app.css',
   './js/config.js', './js/species.js', './js/dnr.js', './js/weather.js', './js/solunar.js', './js/forecast.js', './js/map.js', './js/ui.js', './js/views.js', './js/cloud.js', './js/app.js',
@@ -26,6 +26,8 @@ self.addEventListener('fetch', e => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
 
+  // Radar tiles and NWS alerts: live only, never cached
+  if (url.hostname === 'mesonet.agron.iastate.edu' || url.hostname === 'api.weather.gov') return;
   // Weather: always fresh when online, last copy when offline
   if (url.hostname === 'api.open-meteo.com') {
     e.respondWith(fetch(req).then(res => { if (res.ok) caches.open(DATA_CACHE).then(c => c.put(req, res.clone())); return res; }).catch(() => caches.match(req)));

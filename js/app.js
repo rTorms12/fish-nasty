@@ -19,7 +19,8 @@
     catches: U.store.get(K.catches, []), tomb: Object.assign({ pins: [], catches: [], favorites: [] }, U.store.get(K.tomb, {})),
     catchForm: null, catchPhotoFile: null, catchBusy: false, openCatch: null, buddies: null,
     welcome: false, welcomeSeen: U.store.get('fn.welcome', false),
-    profileRange: null, installPrompt: null, a2hsDismissed: U.store.get('fn.a2hs', false)
+    profileRange: null, installPrompt: null, a2hsDismissed: U.store.get('fn.a2hs', false),
+    wx: null, homeAlerts: null, lakeAlerts: null, homeLoc: null
   };
   let reqId = 0;
 
@@ -33,6 +34,7 @@
       : S.view === 'quick' ? FN.ui.quickForecast(S)
       : S.view === 'account' ? FN.ui.account(S)
       : S.view === 'profile' ? FN.ui.profile(S)
+      : S.view === 'weather' ? FN.ui.weather(S)
       : S.view === 'catch' ? FN.ui.catchForm(S)
       : S.view === 'catches' ? FN.ui.catches(S)
       : S.view === 'buddies' ? FN.ui.buddies(S)
@@ -42,6 +44,7 @@
     S._keepScroll = false;
     if (body.querySelector('img[data-photo]')) setTimeout(hydratePhotos, 0);
     const fb = document.getElementById('fab-forecast'); if (fb) fb.classList.toggle('on', S.view === 'quick');
+    const fw = document.getElementById('fab-weather'); if (fw) fw.classList.toggle('on', S.view === 'weather');
     updateAvatar();
   }
   function updateAvatar() {
@@ -202,6 +205,7 @@
     document.title = `${lake.name} · Fish Nasty`;
     pushRecent(lake);
     if (window.matchMedia('(max-width: 899px)').matches) setSheet('full');   // a lake opens full screen; pull the bar down to see the map
+    S.lakeAlerts = null; if (lake.lat != null) FN.weather.alerts(lake.lat, lake.lon).then(a => { if (S.lake && S.lake.id === lake.id) { S.lakeAlerts = a; if (a.length && S.view === 'lake') rerender(); } });
     FN.map.showLake(lake, { fit });   // after the sheet is sized, so the lake is framed in the part of the map the half-height sheet leaves visible
     FN.map.showAccess([]);
     render();
@@ -361,6 +365,38 @@
     if (!S.quick || !S.quick.weather) return;
     const sp = S.species !== 'ALL' && S.quick.codes.includes(S.species) ? S.species : 'ALL';
     S.quick.bite = FN.forecast.compute(S.quick.weather, S.quick.lat, S.quick.lon, sp, S.catches, { history: S.quick.history });
+  }
+
+  /* ---------- weather page ---------- */
+  async function openWeather(source, opts = {}) {
+    closeSearch(); closePinMenu(); $('#layers-panel').classList.add('hidden'); $('#legend').classList.add('hidden');
+    let lat = opts.lat, lon = opts.lon, label = opts.label || null;
+    if (source === 'gps-cached' && S.location) { lat = S.location.lat; lon = S.location.lon; source = 'gps'; }
+    else if (source === 'gps') {
+      try { const loc = await FN.map.locate(); S.location = loc; lat = loc.lat; lon = loc.lon; }
+      catch (e) { toast(e.code === 1 ? 'Location permission denied. Using the map center instead.' : 'Could not get your location. Using the map center.'); source = 'center'; }
+    }
+    if (source === 'lake' && S.lake) { lat = S.lake.lat; lon = S.lake.lon; label = S.lake.name; }
+    if (lat == null) { const c = FN.map.getMap().getCenter(); lat = c.lat; lon = c.lng; source = 'center'; const near = FN.map.nearestLakeName(lat, lon); label = near ? `Near ${near.name}` : null; }
+    const same = S.wx && S.wx.data && Math.abs(S.wx.lat - lat) < 0.01 && Math.abs(S.wx.lon - lon) < 0.015;
+    if (S.view !== 'weather') S.prevView = S.view;
+    S.wx = { source, lat, lon, label, data: same ? S.wx.data : null, alerts: same ? S.wx.alerts : null, loading: !same, error: null, openAlert: null };
+    S.view = 'weather'; document.title = 'Weather · Fish Nasty';
+    render(); showPanel(); if (isMobile()) setSheet('full');
+    if (same) return;
+    try {
+      const [w, al] = await Promise.all([FN.weather.forecast(lat, lon), FN.weather.alerts(lat, lon)]);
+      if (!S.wx || S.wx.lat !== lat) return;
+      w.fetched = w.fetched || new Date(); S.wx.data = w; S.wx.alerts = al;
+    } catch (e) { if (S.wx) S.wx.error = 'Weather unavailable: ' + e.message; }
+    if (S.wx) S.wx.loading = false;
+    if (S.view === 'weather') rerender();
+  }
+  function leaveWeather() {
+    const back = S.prevView && S.prevView !== 'weather' ? S.prevView : 'home';
+    S.view = back === 'lake' && !S.lake ? 'home' : back === 'quick' && !S.quick ? 'home' : back;
+    document.title = S.view === 'lake' ? `${S.lake.name} · Fish Nasty` : 'Fish Nasty';
+    render();
   }
 
   /* ---------- lake finder (Top 20 + filters) ---------- */
@@ -714,7 +750,8 @@
 
   /* ---------- home bite (location or last lake) ---------- */
   async function loadHomeBite(lat, lon, label) {
-    S.loading.home = true;
+    S.loading.home = true; S.homeLoc = { lat, lon, label };
+    FN.weather.alerts(lat, lon).then(a => { S.homeAlerts = a; if (S.view === 'home' && a.length) rerender(); });
     try {
       const [w, hist] = await Promise.all([FN.weather.forecast(lat, lon), FN.weather.history(lat, lon).catch(() => null)]);
       S.homeWeather = w; S.homeBite = FN.forecast.compute(w, lat, lon, 'ALL', S.catches, { history: hist }); S.homeLabel = label;
@@ -771,6 +808,15 @@
       case 'open-lake': openLake(el.dataset.id); break;
       case 'home': goHome(); break;
       case 'profile': openProfile(); break;
+      case 'weather-here': { const l = S.homeLoc || S.location || (S.lastLake && S.lastLake.lat != null ? { lat: S.lastLake.lat, lon: S.lastLake.lon, label: S.lastLake.name } : null); if (l) openWeather(S.location && l === S.location ? 'gps-cached' : 'point', l); else openWeather('center'); break; }
+      case 'weather-open': if (S.view === 'quick' && S.quick) openWeather(S.quick.source === 'gps' ? 'gps-cached' : 'point', { lat: S.quick.lat, lon: S.quick.lon, label: S.quick.near ? `Near ${S.quick.near}` : null }); else if (S.lake) openWeather('lake'); else openWeather('center'); break;
+      case 'weather-center': openWeather('center'); break;
+      case 'weather-gps': openWeather('gps'); break;
+      case 'weather-lake': openWeather('lake'); break;
+      case 'weather-back': leaveWeather(); break;
+      case 'alert-toggle': if (S.wx) { S.wx.openAlert = S.wx.openAlert === el.dataset.id ? null : el.dataset.id; S._keepScroll = true; rerender(); } break;
+      case 'radar-toggle': { const on = !FN.map.getSettings().radar; FN.map.update({ radar: on }); renderLayers(); if (on) { toast('Radar on · animating the last 30 minutes'); if (isMobile()) closePanel(); } S._keepScroll = true; rerender(); break; }
+      case 'bite-from-weather': if (S.wx) { if (S.wx.source === 'lake' && S.lake) { S.view = 'lake'; S.tab = 'forecast'; render(); if (isMobile()) setSheet('full'); } else openQuick(S.wx.source === 'gps' ? 'gps-cached' : 'center'); } break;
       case 'profile-range': S.profileRange = el.dataset.range; S._keepScroll = true; rerender(); break;
       case 'catch-species-filter': S.prevView = S.view; S.catchFilter = { species: el.dataset.code, name: el.dataset.name }; S.openCatch = null; S.view = 'catches'; render(); if (isMobile()) setSheet('full'); break;
       case 'catch-lake-filter': S.prevView = S.view; S.catchFilter = { lakeId: el.dataset.id || null, name: el.dataset.name }; S.openCatch = null; S.view = 'catches'; render(); if (isMobile()) setSheet('full'); break;
@@ -906,6 +952,7 @@
   $('#btn-top').addEventListener('click', openTop);
   $('#fab-locate').addEventListener('click', locateNearby);
   $('#fab-forecast').addEventListener('click', () => { if (S.view === 'quick') { S.view = S.lake ? 'lake' : 'home'; render(); } else openQuick(S.location ? 'gps-cached' : 'center'); });
+  $('#fab-weather').addEventListener('click', () => { if (S.view === 'weather') leaveWeather(); else openWeather(S.lake && S.view === 'lake' ? 'lake' : S.location ? 'gps-cached' : 'center'); });
   $('#fab-pin').addEventListener('click', () => { const m = $('#pin-menu'); if (m.classList.contains('hidden')) { m.innerHTML = FN.ui.pinMenu(); m.classList.remove('hidden'); $('#layers-panel').classList.add('hidden'); $('#legend').classList.add('hidden'); } else closePinMenu(); });
   $('#fab-zoomin').addEventListener('click', () => FN.map.getMap().zoomIn());
   $('#fab-zoomout').addEventListener('click', () => FN.map.getMap().zoomOut());

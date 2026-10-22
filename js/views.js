@@ -365,5 +365,58 @@ Object.assign(FN.ui, (() => {
     return cols.join(',') + '\n' + rows.join('\n') + '\n';
   }
 
-  return { account, catchForm, catches, catchRow, buddies, reportForm, finder, finderResults, condLine, profile, a2hsCard, initials, catchesCSV, catchStats };
+  /* ---------------- WEATHER ---------------- */
+  const arrow = dir => `<svg class="warrow" viewBox="0 0 24 24" style="transform:rotate(${((dir || 0) + 180) % 360}deg)" aria-hidden="true"><path d="M12 3l5 9h-3.4v9h-3.2v-9H7z" fill="currentColor"/></svg>`;
+  const sevName = s => (s || 'unknown').toLowerCase();
+  function alertCard(a, open) {
+    const when = a.ends ? `until ${new Date(a.ends).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' })}` : '';
+    return `<div class="alert sev-${esc(sevName(a.severity))}"><button class="alert-head" data-action="alert-toggle" data-id="${esc(a.id)}"><span class="ai">⚠️</span><span class="grow"><b>${esc(a.event)}</b><span class="small">${esc(a.headline || when)}</span></span><span class="chev">${open ? '⌄' : '›'}</span></button>
+      ${open ? `<div class="adesc">${a.area ? `<div class="muted small">${esc(a.area)}</div>` : ''}${esc(a.description).replace(/\n\n/g, '<br><br>').replace(/\n/g, ' ')}${a.instruction ? `<div class="ainst">${esc(a.instruction).replace(/\n/g, ' ')}</div>` : ''}<div class="muted small">${esc(a.sender)} · ${when}</div></div>` : ''}</div>`;
+  }
+  function weather(S) {
+    const W = S.wx || {};
+    const where = W.source === 'gps' ? 'Your location' : W.label ? esc(W.label) : 'Where the map is centered';
+    const sub = W.lat != null ? `${where} · ${W.lat.toFixed(3)}, ${W.lon.toFixed(3)}` : '';
+    const parts = [`<div class="lake-head"><button class="icon-btn" data-action="weather-back" title="Back">${ICON.back}</button><div class="grow"><h1>Weather</h1><div class="s">${sub}</div></div></div>`];
+    parts.push(`<div class="actions quick-src"><button class="btn small ${W.source === 'center' ? '' : 'ghost'}" data-action="weather-center">Map center</button><button class="btn small ${W.source === 'gps' ? '' : 'ghost'}" data-action="weather-gps">${ICON.locate} My location</button>${S.lake ? `<button class="btn small ${W.source === 'lake' ? '' : 'ghost'}" data-action="weather-lake">${esc(S.lake.name)}</button>` : ''}</div>`);
+    if (W.error) parts.push(errorBox(W.error));
+    if (W.loading && !W.data) { parts.push(spinner('Loading the forecast…')); return parts.join(''); }
+    const d = W.data; if (!d) return parts.join('');
+    const radarOn = !!FN.map.getSettings().radar;
+    // alerts
+    if (W.alerts && W.alerts.length) parts.push(`<h2>Alerts <span class="muted small">(${W.alerts.length})</span></h2>` + W.alerts.map(a => alertCard(a, W.openAlert === a.id)).join(''));
+    // right now
+    const now = new Date(), cur = d.current || {};
+    const hours = d.hours || [];
+    let hi = hours.findIndex(h => h.t > now); if (hi < 0) hi = hours.length; const curIdx = Math.max(0, hi - 1);
+    const p3 = hours[curIdx] && hours[curIdx - 3] ? hours[curIdx].pressure - hours[curIdx - 3].pressure : 0;
+    const trend = p3 <= -1 ? '↓ falling' : p3 >= 1 ? '↑ rising' : '→ steady';
+    const wxd = FN.weather.describe(cur.code);
+    const info = W.lat != null ? FN.solunar.dayInfo(now, W.lat, W.lon) : null;
+    const hum = cur.humidity != null ? cur.humidity : (hours[curIdx] && hours[curIdx].humidity);
+    parts.push(`<div class="card wx-now">
+      <div class="row"><div class="big-temp">${Math.round(cur.temp)}°<small>F</small></div><div class="grow"><div class="wx-desc">${wxd[1]} ${esc(wxd[0])}</div><div class="muted small">Feels like ${Math.round(cur.feels)}° · ${cur.isDay ? 'day' : 'night'}${d.days && d.days[0] ? ` · high ${Math.round(d.days[0].hi)}° / low ${Math.round(d.days[0].lo)}°` : ''}</div></div></div>
+      <div class="wx-grid">
+        <div class="wx-cell"><span class="l">Wind</span><b>${arrow(cur.windDir)} ${Math.round(cur.wind)} mph ${U.windDir(cur.windDir)}</b><span class="s">${cur.gust ? `gusts ${Math.round(cur.gust)} mph` : 'calm'}</span></div>
+        <div class="wx-cell"><span class="l">Barometer</span><b>${FN.weather.hPaToInHg(cur.pressure)} inHg</b><span class="s">${trend} (3 h)</span></div>
+        <div class="wx-cell"><span class="l">Humidity</span><b>${hum != null ? Math.round(hum) + '%' : '—'}</b><span class="s">clouds ${cur.cloud != null ? Math.round(cur.cloud) + '%' : '—'}</span></div>
+        <div class="wx-cell"><span class="l">Precip</span><b>${cur.precip ? cur.precip.toFixed(2) + '"' : '0"'}</b><span class="s">${hours[curIdx] && hours[curIdx].pop != null ? `${hours[curIdx].pop}% chance this hour` : 'last hour'}</span></div>
+        ${info ? `<div class="wx-cell"><span class="l">Sun</span><b>${U.fmtTime(info.sunrise)} – ${U.fmtTime(info.sunset)}</b><span class="s">${Math.round((info.sunset - info.sunrise) / 60000 / 60 * 10) / 10} h of daylight</span></div>
+        <div class="wx-cell"><span class="l">Moon</span><b>${info.phaseIcon} ${esc(info.phaseName)}</b><span class="s">${Math.round(info.illumination * 100)}% lit</span></div>` : ''}
+      </div></div>`);
+    // radar
+    parts.push(`<div class="card"><div class="row"><div class="trophy">📡</div><div class="grow"><div class="big">Radar</div><div class="muted small">${radarOn ? 'Showing on the map · animating the last 30 minutes' : 'Live NWS radar over the depth map, animated'}</div></div></div>
+      <div class="actions"><button class="btn ${radarOn ? 'ghost' : ''}" data-action="radar-toggle">${radarOn ? 'Hide radar' : 'Show radar on the map'}</button><button class="btn ghost" data-action="bite-from-weather">🎣 Bite forecast here</button></div></div>`);
+    // hourly (next 24 h)
+    const next = hours.slice(curIdx, curIdx + 25);
+    parts.push(`<h2>Next 24 hours</h2><div class="wx-hours">${next.map((h, i) => { const dd = FN.weather.describe(h.code); return `<div class="wx-hour ${i === 0 ? 'now' : ''}"><div class="t">${i === 0 ? 'Now' : h.t.toLocaleTimeString('en-US', { hour: 'numeric' }).replace(' ', '')}</div><div class="ic">${dd[1]}</div><div class="tp">${Math.round(h.temp)}°</div><div class="wd">${arrow(h.windDir)}${Math.round(h.wind)}</div><div class="pp ${h.pop >= 40 ? 'wet' : ''}">${h.pop != null && h.pop >= 15 ? h.pop + '%' : ''}</div></div>`; }).join('')}</div>`);
+    // 7 days
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const days = (d.days || []).filter(x => x.date >= today).slice(0, 7);
+    parts.push(`<h2>Next 7 days</h2><div class="card wx-days">${days.map((x, i) => { const dd = FN.weather.describe(x.code); return `<div class="wx-day"><div class="dn">${i === 0 ? 'Today' : x.date.toLocaleDateString('en-US', { weekday: 'short' })}<span class="s">${x.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span></div><div class="ic">${dd[1]}</div><div class="grow"><div>${esc(dd[0])}</div><div class="s">wind to ${Math.round(x.windMax)} mph${x.gustMax ? `, gusts ${Math.round(x.gustMax)}` : ''}${x.precip ? ` · ${x.precip.toFixed(2)}" precip` : x.pop >= 30 ? ` · ${x.pop}% chance` : ''}</div><div class="s">☀️ ${U.fmtTime(x.sunrise)} – ${U.fmtTime(x.sunset)}</div></div><div class="hl"><b>${Math.round(x.hi)}°</b><span>${Math.round(x.lo)}°</span></div></div>`; }).join('')}</div>`);
+    parts.push(`<div class="foot">Forecast: Open-Meteo (NOAA/ECMWF models) · Radar: NWS NEXRAD via Iowa State Mesonet · Alerts: National Weather Service. Updated ${U.fmtTime(d.fetched || now)}.</div>`);
+    return parts.join('');
+  }
+
+  return { account, catchForm, catches, catchRow, buddies, reportForm, finder, finderResults, condLine, profile, a2hsCard, initials, catchesCSV, catchStats, weather, alertCard };
 })());

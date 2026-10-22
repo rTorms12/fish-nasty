@@ -49,6 +49,7 @@ FN.ui = (() => {
     const favs = S.favorites || [];
     const parts = [];
     parts.push(`<div class="hero"><div class="logo">${ICON.fish}</div><div><h1>Fish Nasty</h1><p>Minnesota lake maps, DNR surveys, stocking records and a bite forecast.</p></div></div>`);
+    parts.push(alertBanner(S.homeAlerts, 'weather-here'));
     parts.push(FN.ui.a2hsCard(S));
     if (!S.user && FN.cloud && FN.cloud.available()) {
       parts.push(`<button class="card link signin-card" data-action="account"><div class="row"><div class="avatar">☁️</div><div class="grow"><div class="big">Sign in or create an account</div><div class="muted small">Back up and sync your pins and favorites, keep a catch log with photos, and share spots with buddies.</div></div><div class="chev">›</div></div></button>`);
@@ -68,7 +69,7 @@ FN.ui = (() => {
             ${day ? `<div class="muted small">Today ${day.score}/100 · best ${day.windows.length ? day.windows.map(windowText).join(', ') : 'no standout window'}</div>` : ''}
             ${wx ? `<div class="muted small">${FN.weather.describe(wx.code)[1]} ${Math.round(wx.temp)}°F · wind ${Math.round(wx.wind)} mph ${U.windDir(wx.windDir)} · ${FN.weather.hPaToInHg(wx.pressure)} inHg · ${cur.info.phaseIcon} ${esc(cur.info.phaseName)}</div>` : ''}
           </div></div>
-        <div class="actions"><button class="btn" data-action="locate-nearby">${ICON.locate} Use my location</button>${S.lastLake ? `<button class="btn ghost" data-action="open-lake" data-id="${esc(S.lastLake.id)}">Open ${esc(S.lastLake.name)}</button>` : ''}</div>
+        <div class="actions"><button class="btn" data-action="locate-nearby">${ICON.locate} Use my location</button><button class="btn ghost" data-action="weather-here">🌦️ Weather</button>${S.lastLake ? `<button class="btn ghost" data-action="open-lake" data-id="${esc(S.lastLake.id)}">Open ${esc(S.lastLake.name)}</button>` : ''}</div>
       </div>`);
     } else {
       parts.push(`<div class="card bite-now"><div class="row"><div class="grow"><div class="eyebrow">Bite forecast</div><div class="muted small">${S.loading.home ? 'Checking the weather and moon…' : 'Turn on location to see the bite forecast for where you are, or open any lake below.'}</div></div></div>
@@ -155,6 +156,13 @@ FN.ui = (() => {
     <div class="tab-body">${body}</div>`;
   }
 
+  // One-line banner for the most serious active NWS alert; tap for the weather page
+  function alertBanner(alerts, action) {
+    if (!alerts || !alerts.length) return '';
+    const a = alerts[0];
+    const until = a.ends ? `until ${new Date(a.ends).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' })}` : 'tap for details';
+    return `<button class="alert-banner sev-${esc((a.severity || 'unknown').toLowerCase())}" data-action="${action}"><span class="ai">⚠️</span><span class="grow"><b>${esc(a.event)}</b>${alerts.length > 1 ? ` +${alerts.length - 1} more` : ''}<span class="small">${esc(until)}</span></span><span class="chev">›</span></button>`;
+  }
   function overview(S) {
     const L = S.lake, D = S.detail;
     const maxD = (D && D.maxDepth) || L.maxDepth, meanD = (D && D.meanDepth) || L.meanDepth;
@@ -162,6 +170,7 @@ FN.ui = (() => {
     const clarity = D && D.avgClarity;
     const stockedCodes = new Set(((S.stocking && S.stocking.rows) || []).filter(r => r.year >= new Date().getFullYear() - 6).map(r => r.code));
     const parts = [];
+    parts.push(alertBanner(S.lakeAlerts, 'weather-open'));
     parts.push(`<div class="stats">${stat('acres', U.num(acres))}${stat('max depth', U.num(maxD), ' ft')}${stat('mean depth', meanD ? U.num(meanD, 1) : '—', meanD ? ' ft' : '')}${stat('littoral (<15 ft)', litt ? Math.round(100 * litt / Math.max(1, acres)) : '—', litt ? '%' : '')}${stat('shoreline', shore ? U.num(shore, 1) : '—', shore ? ' mi' : '')}${stat('clarity', clarity ? U.num(clarity, 1) : '—', clarity ? ' ft' : '')}</div>`);
 
     if (S.bathy) {
@@ -425,7 +434,8 @@ FN.ui = (() => {
     const wxd = FN.weather.describe(cur.code);
     parts.push(`<div class="card"><div class="row">${scoreRing(curHour.score, 64)}<div class="grow"><div class="eyebrow">Right now</div><div class="big">${ratingBadge(curHour.rating)} <span class="muted">${esc(B.profile.name)}</span></div>
       <div class="wx">${wxd[1]} ${esc(wxd[0])} · ${Math.round(cur.temp)}°F (feels ${Math.round(cur.feels)}°) · wind ${Math.round(cur.wind)} mph ${U.windDir(cur.windDir)}${cur.gust ? ', gusts ' + Math.round(cur.gust) : ''} · clouds ${cur.cloud}%</div>
-      <div class="wx muted">Barometer ${FN.weather.hPaToInHg(cur.pressure)} inHg ${trend} · ${curHour.info.phaseIcon} ${esc(curHour.info.phaseName)} (${Math.round(curHour.info.illumination * 100)}% lit)${B.water && B.water.today != null ? ` · water ~${Math.round(B.water.today)}°F${B.water.today <= 33 ? ' (ice)' : ''}` : ''}</div></div></div></div>`);
+      <div class="wx muted">Barometer ${FN.weather.hPaToInHg(cur.pressure)} inHg ${trend} · ${curHour.info.phaseIcon} ${esc(curHour.info.phaseName)} (${Math.round(curHour.info.illumination * 100)}% lit)${B.water && B.water.today != null ? ` · water ~${Math.round(B.water.today)}°F${B.water.today <= 33 ? ' (ice)' : ''}` : ''}</div></div></div>
+      <div class="actions"><button class="btn small ghost" data-action="weather-open">🌦️ Full weather &amp; radar</button></div></div>`);
 
     // 7-day strip
     const di = Math.min(S.dayIdx || 0, B.days.length - 1);
@@ -570,6 +580,8 @@ FN.ui = (() => {
     <label class="switch"><input type="checkbox" data-toggle="contours" ${s.contours ? 'checked' : ''}><span>Depth contours</span></label>
     <label class="switch"><input type="checkbox" data-toggle="labels" ${s.labels ? 'checked' : ''}><span>Depth labels (zoom 13+)</span></label>
     <label class="switch"><input type="checkbox" data-toggle="names" ${s.names !== false ? 'checked' : ''}><span>Lake names (zoom 11+)</span></label>
+    <label class="switch"><input type="checkbox" data-toggle="radar" ${s.radar ? 'checked' : ''}><span>Weather radar</span></label>
+    ${s.radar ? `<label class="switch sub"><input type="checkbox" data-toggle="radarLoop" ${s.radarLoop !== false ? 'checked' : ''}><span>Animate the last 30 minutes</span></label><p class="muted small radar-note">NWS NEXRAD radar, a new frame every 5 minutes. Greens are light rain or snow, yellows and reds are heavy.</p>` : ''}
     <label class="range"><span>Shading opacity</span><input type="range" min="0.2" max="1" step="0.05" value="${s.opacity}" data-range="opacity"></label>
     <div class="depth-filter"><div class="eyebrow">Highlight depth range</div><div class="row">
       <select data-depth="min">${mins.map(v => `<option value="${v}" ${v === s.depthMin ? 'selected' : ''}>${v} ft</option>`).join('')}</select><span>to</span>
@@ -591,5 +603,5 @@ FN.ui = (() => {
     return `<div class="depth-popup">${html}</div>`;
   };
 
-  return { ICON, home, lake, top, quickForecast, searchResults, layersPanel, legend, depthPopup, spinner, errorBox, ratingBadge, scoreRing, pinPopup, pinEditor, pinMenu, speciesIcon, gearShort, lakeRow, pinRow, windowText };
+  return { ICON, home, lake, top, quickForecast, searchResults, layersPanel, legend, depthPopup, spinner, errorBox, ratingBadge, scoreRing, pinPopup, pinEditor, pinMenu, speciesIcon, gearShort, lakeRow, pinRow, windowText, alertBanner };
 })();

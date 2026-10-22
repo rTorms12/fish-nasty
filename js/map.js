@@ -6,8 +6,9 @@ FN.map = (() => {
   let map, lakeMarker, accessGroup, locateGroup, pinsGroup;
   const base = {}, overlays = {};
   const pinMarkers = new Map();
-  const DEFAULTS = { basemap: 'sat', relief: true, contours: true, labels: true, names: true, opacity: 0.9, depthMin: 0, depthMax: 999 };
+  const DEFAULTS = { basemap: 'sat', relief: true, contours: true, labels: true, names: true, opacity: 0.9, depthMin: 0, depthMax: 999, radar: false, radarLoop: true };
   const settings = Object.assign({}, DEFAULTS, U.store.get(C.storageKeys.layers, {}));
+  settings.radar = false;   // radar is a session thing: never on at launch
   const listeners = { tap: [], zoom: [], hold: [], label: [] };
 
   /* ArcGIS "export" / "exportImage" rendered per tile (no tile cache on the DNR servers) */
@@ -177,7 +178,39 @@ FN.map = (() => {
     }
     overlays.relief.setOpacity(settings.opacity);
     if (accessGroup) accessGroup.bringToFront && accessGroup.bringToFront();
-    U.store.set(C.storageKeys.layers, settings);
+    syncRadar();
+    U.store.set(C.storageKeys.layers, Object.assign({}, settings, { radar: false }));
+  }
+
+  /* ---------- weather radar: NWS NEXRAD composite, tiles by Iowa State Mesonet, new frame every 5 minutes ---------- */
+  const RADAR_FRAMES = ['-m25m', '-m20m', '-m15m', '-m10m', '-m05m', ''];   // 25 minutes ago ... now
+  const radar = { layers: [], frames: 0, timer: 0, refresh: 0, idx: 0 };
+  const radarUrl = sfx => `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913${sfx}/{z}/{x}/{y}.png?t={t}`;
+  function stopRadar() {
+    clearTimeout(radar.timer); clearInterval(radar.refresh); radar.timer = 0; radar.refresh = 0;
+    for (const l of radar.layers) if (map.hasLayer(l)) map.removeLayer(l);
+    radar.layers = []; radar.frames = 0; radar.idx = 0;
+  }
+  function radarTick() {
+    const n = radar.layers.length; if (!n) return;
+    radar.layers.forEach((l, i) => l.setOpacity(i === radar.idx ? 0.72 : 0));
+    const last = radar.idx === n - 1;
+    radar.idx = (radar.idx + 1) % n;
+    radar.timer = setTimeout(radarTick, last ? 1600 : 650);   // hold on the latest frame
+  }
+  function syncRadar() {
+    if (!settings.radar) { stopRadar(); return; }
+    const frames = settings.radarLoop !== false ? RADAR_FRAMES : [''];
+    if (radar.frames !== frames.length) {
+      stopRadar();
+      if (!map.getPane('radar')) { map.createPane('radar'); map.getPane('radar').style.zIndex = 430; map.getPane('radar').style.pointerEvents = 'none'; }
+      radar.layers = frames.map(sfx => L.tileLayer(radarUrl(sfx), { pane: 'radar', opacity: 0, maxNativeZoom: 12, maxZoom: 19, updateWhenZooming: false, keepBuffer: 2, t: () => Math.floor(Date.now() / 300000), attribution: 'Radar: NWS NEXRAD via IEM' }).addTo(map));
+      radar.frames = frames.length; radar.idx = frames.length - 1;
+      radar.refresh = setInterval(() => radar.layers.forEach(l => l.redraw()), 5 * 60 * 1000);
+    }
+    clearTimeout(radar.timer);
+    if (frames.length === 1) radar.layers[0].setOpacity(0.72);
+    else radarTick();
   }
 
   function update(patch) {
