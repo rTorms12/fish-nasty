@@ -3,7 +3,7 @@ window.FN = window.FN || {};
 
 FN.config = {
   appName: 'Fish Nasty',
-  version: '1.5.4',
+  version: '1.5.5',
   tz: 'America/Chicago',
 
   // Minnesota DNR LakeFinder (public JSON/HTML endpoints, CORS enabled)
@@ -33,8 +33,8 @@ FN.config = {
   },
 
   map: {
-    center: [46.35, -94.2],
-    zoom: 7,
+    center: [45.0816, -94.3069], // Dassel, MN — where the map opens the very first time
+    zoom: 11,
     minZoom: 5,
     maxZoom: 18,
     contourMinZoom: 10,
@@ -66,7 +66,8 @@ FN.config = {
     pins: 'fn.pins',
     catches: 'fn.catches',
     tomb: 'fn.tomb',
-    finder: 'fn.finder'
+    finder: 'fn.finder',
+    view: 'fn.view'
   },
 
   pinColors: ['#ffb454', '#ff6b6b', '#6cf0bd', '#58d1ff', '#c58bff', '#ffffff']

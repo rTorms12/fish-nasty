@@ -99,8 +99,11 @@ FN.map = (() => {
   }
 
   function init(el) {
+    // Open where the map was last left; the very first time, open on Dassel
+    const saved = U.store.get(C.storageKeys.view, null);
+    const start = saved && isFinite(saved.lat) && isFinite(saved.lon) && isFinite(saved.zoom) ? { center: [saved.lat, saved.lon], zoom: saved.zoom } : { center: C.map.center, zoom: C.map.zoom };
     map = L.map(el, {
-      center: C.map.center, zoom: C.map.zoom, minZoom: C.map.minZoom, maxZoom: C.map.maxZoom,
+      center: start.center, zoom: start.zoom, minZoom: C.map.minZoom, maxZoom: C.map.maxZoom,
       zoomControl: false, attributionControl: true, worldCopyJump: false,
       zoomSnap: 0.5, wheelDebounceTime: 60, inertiaDeceleration: 2500, fadeAnimation: false, markerZoomAnimation: false
     });
@@ -129,6 +132,8 @@ FN.map = (() => {
     applySettings();
     map.on('moveend zoomend', scheduleLabels);
     scheduleLabels();
+    let viewTimer = null;
+    map.on('moveend', () => { clearTimeout(viewTimer); viewTimer = setTimeout(() => { const c = map.getCenter(); U.store.set(C.storageKeys.view, { lat: +c.lat.toFixed(5), lon: +c.lng.toFixed(5), zoom: map.getZoom() }); }, 400); });
 
     map.on('click', e => { for (const fn of listeners.tap) fn(e.latlng); });
     // Right-click on desktop, long-press on touch screens
