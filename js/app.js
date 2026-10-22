@@ -86,9 +86,9 @@
   function setSheet(state) { sheet.classList.remove(...SNAPS); sheet.classList.add(state); sheet.style.height = ''; showPanel(); }
   const maxSheetHeight = () => { const tb = $('.topbar').getBoundingClientRect(); return Math.max(120, window.innerHeight - tb.bottom - 12); };
   function showPanel() { document.getElementById('app').classList.remove('panel-closed'); $('#panel-open').classList.add('hidden'); }
+  // The X slides the panel off screen on every device; the "Panel" tab (or any lake, search result, pin or tool) brings it back
   function closePanel() {
-    if (isMobile()) { sheet.classList.remove(...SNAPS); sheet.classList.add('collapsed'); sheet.style.height = ''; }
-    else { document.getElementById('app').classList.add('panel-closed'); $('#panel-open').classList.remove('hidden'); }
+    document.getElementById('app').classList.add('panel-closed'); $('#panel-open').classList.remove('hidden');
     FN.map.getMap().invalidateSize();
   }
   (function dragSetup() {
@@ -769,7 +769,7 @@
       case 'auth-mode': S.authMode = el.dataset.mode; setAuthMsg(null); rerender(); break;
       case 'welcome-skip': S.welcome = false; S.welcomeSeen = true; U.store.set('fn.welcome', true); S.view = 'home'; render(); if (isMobile()) setSheet('half'); break;
       case 'sheet-close': closePanel(); break;
-      case 'sheet-open': showPanel(); FN.map.getMap().invalidateSize(); break;
+      case 'sheet-open': if (isMobile()) setSheet('half'); else showPanel(); FN.map.getMap().invalidateSize(); break;
       case 'signout': FN.cloud.signOut().then(() => toast('Signed out')); break;
       case 'sync-now': syncAll().then(() => toast('Synced')).catch(e => toast('Sync failed: ' + e.message)); break;
       case 'catches': S.prevView = S.view === 'profile' ? 'profile' : 'home'; S.catchFilter = null; S.view = 'catches'; render(); if (isMobile()) setSheet('full'); break;

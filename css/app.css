@@ -235,6 +235,30 @@ select { font: inherit; background: var(--panel-2); color: var(--text); border: 
 .depth-popup .pl { color: var(--muted); font-size: 13px; margin-bottom: 6px; }
 .toast { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(50% + 64px); background: #e8f1f8; color: #0b1a26; padding: 10px 16px; border-radius: 999px; font-weight: 600; font-size: 13.5px; z-index: 2000; box-shadow: var(--shadow); max-width: 90vw; text-align: center; }
 
+/* phone: the X slides the sheet away; a tab at the bottom brings it back. Map layers panel fills the width with bigger controls */
+@media (max-width: 899px) {
+  .sheet { transition: height .28s cubic-bezier(.2,.8,.2,1), transform .3s cubic-bezier(.2,.8,.2,1); }
+  #app.panel-closed .sheet { transform: translateY(calc(100% + 40px)); box-shadow: none; pointer-events: none; }
+  #panel-open { left: 50%; right: auto; bottom: calc(var(--sab) + 18px); transform: translateX(-50%); padding: 11px 18px 11px 14px; font-size: 15px; }
+  #panel-open svg { transform: rotate(-90deg); }
+  #layers-panel { left: 12px; right: 12px; width: auto; max-width: none; top: calc(var(--sat) + 64px); max-height: calc(100vh - var(--sat) - 96px); padding: 16px 18px 18px; border-radius: 20px; z-index: 1250; font-size: 16px; }   /* above the sheet, below the search bar */
+  #layers-panel .panel-head { margin-bottom: 10px; }
+  #layers-panel .panel-head strong { font-size: 20px; }
+  #layers-panel .panel-head .icon-btn { width: 40px; height: 40px; }
+  #layers-panel .seg { margin: 8px 0 12px; }
+  #layers-panel .seg button { font-size: 15.5px; padding: 11px 4px; }
+  #layers-panel .switch { padding: 12px 0; font-size: 17px; }
+  #layers-panel .switch input { width: 27px; height: 27px; }
+  #layers-panel .range { font-size: 15px; padding: 12px 0 8px; }
+  #layers-panel .range input { height: 36px; }
+  #layers-panel .depth-filter { margin-top: 12px; padding-top: 14px; }
+  #layers-panel .depth-filter .eyebrow { font-size: 13px; }
+  #layers-panel .depth-filter .row { gap: 10px; margin-top: 10px; }
+  #layers-panel select { font-size: 16px; padding: 11px 12px; }
+  #layers-panel .depth-filter .btn { font-size: 15px; padding: 11px 16px; }
+  #layers-panel .muted.small { font-size: 13.5px; margin-bottom: 0; }
+}
+
 /* desktop: side panel layout */
 @media (min-width: 900px) {
   .sheet, .sheet.collapsed, .sheet.half, .sheet.full, .sheet.custom { top: 0; bottom: 0; left: 0; right: auto; width: var(--panel-w); height: auto; max-height: none; border-radius: 0; padding-top: 72px; transition: transform .25s ease; }
