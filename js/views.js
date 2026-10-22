@@ -122,10 +122,12 @@ Object.assign(FN.ui, (() => {
   function catches(S) {
     const F = S.catchFilter;
     const all = [...S.catches].sort((a, b) => (a.caughtAt < b.caughtAt ? 1 : -1));
-    const list = F && F.pinId ? all.filter(c => c.pinId === F.pinId) : all;
+    const sameSp = (a, b) => a === b || ((FN.profileFor(a) || {}).name && (FN.profileFor(a) || {}).name === (FN.profileFor(b) || {}).name);
+    const list = F && F.pinId ? all.filter(c => c.pinId === F.pinId) : F && F.species ? all.filter(c => sameSp(c.species, F.species)) : F && F.lakeId ? all.filter(c => c.lakeId === F.lakeId) : all;
     const ins = FN.forecast.insights(list, 'ALL');
-    const parts = [head(F && F.pinId ? 'Catches at this spot' : 'Catch log', `${F && F.pinId ? esc(F.name) + ' · ' : ''}${list.length} catch${list.length === 1 ? '' : 'es'}${S.user ? '' : ' · on this device only'}`, 'home', `<button class="icon-btn" data-action="catch-new" ${F && F.pinId ? `data-pin-id="${esc(F.pinId)}"` : ''} title="Log a catch">${ICON.plus}</button>`)];
-    if (F && F.pinId) parts.push(`<div class="actions"><button class="btn small ghost" data-action="catch-filter-clear">Show all catches</button><button class="btn small ghost" data-action="pin-open" data-id="${esc(F.pinId)}">Show pin on map</button></div>`);
+    const title = F && F.pinId ? 'Catches at this spot' : F && F.species ? `${esc(F.name)} catches` : F && F.lakeId ? `Catches on ${esc(F.name)}` : 'Catch log';
+    const parts = [head(title, `${F && F.pinId ? esc(F.name) + ' · ' : ''}${list.length} catch${list.length === 1 ? '' : 'es'}${S.user ? '' : ' · on this device only'}`, S.prevView === 'profile' ? 'profile' : 'home', `<button class="icon-btn" data-action="catch-new" ${F && F.pinId ? `data-pin-id="${esc(F.pinId)}"` : ''} title="Log a catch">${ICON.plus}</button>`)];
+    if (F && (F.pinId || F.species || F.lakeId)) parts.push(`<div class="actions"><button class="btn small ghost" data-action="catch-filter-clear">Show all catches</button>${F.pinId ? `<button class="btn small ghost" data-action="pin-open" data-id="${esc(F.pinId)}">Show pin on map</button>` : ''}${F.lakeId ? `<button class="btn small ghost" data-action="open-lake" data-id="${esc(F.lakeId)}">Open lake</button>` : ''}</div>`);
     if (!list.length) parts.push(`<div class="card"><p>No catches yet. Tap <b>+</b> to log one, or use “Log catch” on any pin.</p><div class="actions"><button class="btn" data-action="catch-new">+ Log a catch</button></div></div>`);
     if (ins) {
       const bySpecies = new Map();
@@ -235,5 +237,132 @@ Object.assign(FN.ui, (() => {
     return parts.join('');
   }
 
-  return { account, catchForm, catches, catchRow, buddies, reportForm, finder, finderResults, condLine };
+  /* ---------------- PROFILE ---------------- */
+  const initials = S => {
+    if (!S.user) return null;
+    const name = ((S.profile && S.profile.display_name) || S.user.email.split('@')[0] || '').trim();
+    const words = name.split(/[\s._-]+/).filter(Boolean);
+    const ini = words.length >= 2 ? words[0][0] + words[1][0] : name.slice(0, 2);
+    return ini.toUpperCase() || '?';
+  };
+  const standalone = () => window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const SHARE_IC = '<svg class="share-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 11v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9"/></svg>';
+  // Add-to-home-screen nudge: on the home page until dismissed, always on the profile page
+  function a2hsCard(S, where) {
+    if (standalone()) return where === 'profile' ? `<div class="card a2hs"><div class="row"><div class="trophy">📲</div><div class="grow"><div class="big">On your home screen</div><div class="muted small">Fish Nasty is installed as an app on this device.</div></div></div></div>` : '';
+    const mobile = window.matchMedia('(max-width: 899px)').matches || navigator.maxTouchPoints > 1;
+    if (where === 'home' && (S.a2hsDismissed || !mobile)) return '';
+    if (where === 'profile' && !mobile && !S.installPrompt) return '';
+    const ios = isIOS();
+    const how = S.installPrompt
+      ? `<div class="actions"><button class="btn" data-action="a2hs-install">Install Fish Nasty</button>${where === 'home' ? `<button class="btn ghost" data-action="a2hs-dismiss">Not now</button>` : ''}</div>`
+      : ios
+        ? `<ol><li>Tap <b>Share</b> ${SHARE_IC} at the bottom of Safari (top right on iPad).</li><li>Scroll down and tap <b>Add to Home Screen</b>.</li><li>Tap <b>Add</b>. The walleye icon lands on your home screen.</li></ol>${where === 'home' ? `<div class="actions"><button class="btn ghost small" data-action="a2hs-dismiss">Got it</button></div>` : ''}`
+        : `<ol><li>Open the browser menu (<b>⋮</b>).</li><li>Tap <b>Add to Home screen</b> or <b>Install app</b>.</li></ol>${where === 'home' ? `<div class="actions"><button class="btn ghost small" data-action="a2hs-dismiss">Got it</button></div>` : ''}`;
+    return `<div class="card a2hs"><div class="row"><div class="trophy">📲</div><div class="grow"><div class="big">Add Fish Nasty to your home screen</div><div class="muted small">Opens full screen like an app, loads faster, and keeps working on the water where service is spotty.</div></div></div>${how}</div>`;
+  }
+
+  // Lifetime / this-year totals from the catch log
+  function catchStats(catches) {
+    const list = catches || [];
+    const species = new Map(), lakes = new Map(), days = new Set();
+    let released = 0, inches = 0;
+    for (const c of list) {
+      const p = FN.profileFor(c.species); const name = p ? p.name : (c.speciesName || c.species);
+      const s = species.get(name) || { code: p ? p.code || c.species : c.species, name, n: 0, biggest: null, heaviest: null, lakes: new Map() };
+      s.n++; if (c.length && (!s.biggest || c.length > s.biggest.length)) s.biggest = c; if (c.weight && (!s.heaviest || c.weight > s.heaviest.weight)) s.heaviest = c;
+      if (c.lakeName) s.lakes.set(c.lakeName, (s.lakes.get(c.lakeName) || 0) + 1);
+      species.set(name, s);
+      if (c.lakeName) { const l = lakes.get(c.lakeName) || { id: c.lakeId, name: c.lakeName, n: 0, species: new Map(), biggest: null }; l.n++; l.species.set(name, (l.species.get(name) || 0) + 1); if (c.length && (!l.biggest || c.length > l.biggest.length)) l.biggest = c; lakes.set(c.lakeName, l); }
+      days.add(new Date(c.caughtAt).toDateString());
+      if (c.released) released++; if (c.length) inches += c.length;
+    }
+    const withLen = list.filter(c => c.length), withWt = list.filter(c => c.weight);
+    return {
+      n: list.length, released, inches: Math.round(inches), days: days.size,
+      species: [...species.values()].sort((a, b) => b.n - a.n).map(s => Object.assign(s, { topLake: [...s.lakes.entries()].sort((a, b) => b[1] - a[1])[0] })),
+      lakes: [...lakes.values()].sort((a, b) => b.n - a.n),
+      biggest: withLen.length ? withLen.reduce((a, b) => (b.length > a.length ? b : a)) : null,
+      heaviest: withWt.length ? withWt.reduce((a, b) => (b.weight > a.weight ? b : a)) : null
+    };
+  }
+  function monthChart(list, range) {
+    const now = new Date();
+    let cols;
+    if (range === 'year') cols = Array.from({ length: 12 }, (_, m) => ({ label: new Date(now.getFullYear(), m, 1).toLocaleDateString('en-US', { month: 'short' }).slice(0, 1), full: new Date(now.getFullYear(), m, 1).toLocaleDateString('en-US', { month: 'long' }), v: 0, key: m }));
+    else { const yrs = [...new Set(list.map(c => new Date(c.caughtAt).getFullYear()))].sort(); if (yrs.length < 2) return ''; cols = yrs.map(y => ({ label: String(y).slice(2), full: String(y), v: 0, key: y })); }
+    for (const c of list) { const d = new Date(c.caughtAt); const k = range === 'year' ? d.getMonth() : d.getFullYear(); const col = cols.find(x => x.key === k); if (col) col.v++; }
+    if (!cols.some(c => c.v)) return '';
+    const W = 300, H = 100, padB = 18, padT = 16, bw = W / cols.length, maxV = Math.max(...cols.map(c => c.v));
+    const bars = cols.map((c, i) => { const h = (H - padB - padT) * c.v / maxV, x = i * bw, y = H - padB - h; return `<g><rect x="${(x + 2).toFixed(1)}" y="${y.toFixed(1)}" width="${(bw - 4).toFixed(1)}" height="${Math.max(c.v ? 2 : 0, h).toFixed(1)}" rx="2" fill="${c.v === maxV ? '#ffb454' : '#5aa9f0'}"/>${c.v ? `<text x="${(x + bw / 2).toFixed(1)}" y="${(y - 4).toFixed(1)}" text-anchor="middle" class="val">${c.v}</text>` : ''}<text x="${(x + bw / 2).toFixed(1)}" y="${H - 4}" text-anchor="middle">${c.label}</text><title>${c.full}: ${c.v}</title></g>`; }).join('');
+    return `<svg viewBox="0 0 ${W} ${H}" class="month-chart" role="img" aria-label="Catches by ${range === 'year' ? 'month' : 'year'}">${bars}</svg>`;
+  }
+  const fmtDay = iso => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+  function profile(S) {
+    const signed = !!S.user;
+    const name = signed ? ((S.profile && S.profile.display_name) || S.user.email.split('@')[0]) : 'Your profile';
+    const since = signed && S.user.created_at ? new Date(S.user.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : null;
+    const ini = initials(S);
+    const parts = [];
+    parts.push(`<div class="lake-head phead"><button class="icon-btn" data-action="home" title="Home">${ICON.back}</button><div class="avatar xl">${ini ? esc(ini) : '👤'}</div><div class="grow"><h1>${esc(name)}</h1><div class="s">${signed ? `${esc(S.user.email)}${since ? ' · since ' + since : ''}` : 'Not signed in · everything here is kept on this device'}</div></div>${signed ? `<button class="icon-btn" data-action="account" title="Account settings">${ICON.edit}</button>` : ''}</div>`);
+    if (!signed) parts.push(`<button class="card link signin-card" data-action="account"><div class="row"><div class="avatar">☁️</div><div class="grow"><div class="big">Sign in or create an account</div><div class="muted small">Back up your catches, pins and favorites, sync them to every device, and share with buddies.</div></div><div class="chev">›</div></div></button>`);
+
+    // ---- fish tracker ----
+    const all = [...S.catches].sort((a, b) => (a.caughtAt < b.caughtAt ? 1 : -1));
+    const yr = new Date().getFullYear();
+    const thisYear = all.filter(c => new Date(c.caughtAt).getFullYear() === yr);
+    const range = S.profileRange || (thisYear.length ? 'year' : 'all');
+    const list = range === 'year' ? thisYear : all;
+    const st = catchStats(list);
+    const lifetime = catchStats(all);
+    parts.push(`<h2>Fish tracker</h2>
+      <div class="seg"><button class="${range === 'year' ? 'on' : ''}" data-action="profile-range" data-range="year">${yr} (${thisYear.length})</button><button class="${range === 'all' ? 'on' : ''}" data-action="profile-range" data-range="all">All time (${all.length})</button></div>
+      <div class="stats six"><div class="stat"><div class="v">${st.n}</div><div class="l">Fish caught</div></div><div class="stat"><div class="v">${st.species.length}</div><div class="l">Species</div></div><div class="stat"><div class="v">${st.lakes.length}</div><div class="l">Lakes</div></div><div class="stat"><div class="v">${st.biggest ? st.biggest.length + '<small>in</small>' : '—'}</div><div class="l">Biggest</div></div><div class="stat"><div class="v">${st.heaviest ? st.heaviest.weight + '<small>lb</small>' : '—'}</div><div class="l">Heaviest</div></div><div class="stat"><div class="v">${st.days}</div><div class="l">Days on water</div></div></div>`);
+    if (!st.n) parts.push(`<div class="card"><p>${all.length ? `No catches logged in ${yr} yet.` : 'No catches logged yet.'} Tap a pin on the map and hit <b>Log a catch here</b>, or log one from any lake page. Every catch saves the weather, water temperature, moon and bite score for that moment.</p><div class="actions"><button class="btn" data-action="catch-new">+ Log a catch</button></div></div>`);
+    else {
+      parts.push(`<div class="card"><div class="eyebrow">By species</div>${st.species.map(s => `<button class="sp-row" data-action="catch-species-filter" data-code="${esc(s.code)}" data-name="${esc(s.name)}">${speciesIcon(s.code, 'md')}<div class="grow"><div class="t">${esc(s.name)}</div><div class="s">${s.biggest ? `biggest ${s.biggest.length}″${s.biggest.lakeName ? ' · ' + esc(s.biggest.lakeName) : ''}` : 'no lengths yet'}${s.heaviest ? ` · heaviest ${s.heaviest.weight} lb` : ''}${s.topLake && !(s.biggest && s.biggest.lakeName === s.topLake[0]) ? ` · most on ${esc(s.topLake[0])}` : ''}</div></div><div class="n">${s.n}</div><div class="chev">›</div></button>`).join('')}</div>`);
+      const mc = monthChart(list, range);
+      if (mc) parts.push(`<div class="card"><div class="eyebrow">Catches by ${range === 'year' ? 'month' : 'year'}</div>${mc}</div>`);
+      if (st.lakes.length) parts.push(`<div class="card"><div class="eyebrow">By lake</div>${st.lakes.slice(0, 8).map(l => `<button class="sp-row" data-action="catch-lake-filter" data-id="${esc(l.id || '')}" data-name="${esc(l.name)}"><div class="grow"><div class="t">${esc(l.name)}</div><div class="s">${[...l.species.entries()].sort((a, b) => b[1] - a[1]).map(([k, v]) => `${v} ${k.toLowerCase()}`).join(', ')}${l.biggest ? ` · biggest ${l.biggest.length}″` : ''}</div></div><div class="n">${l.n}</div><div class="chev">›</div></button>`).join('')}</div>`);
+      const pb = lifetime.species.filter(s => s.biggest).sort((a, b) => b.biggest.length - a.biggest.length);
+      if (pb.length) parts.push(`<div class="card"><div class="eyebrow">Personal bests · all time</div>${pb.map(s => `<div class="irow pb"><span>${speciesIcon(s.code, 'sm')} ${esc(s.name)}</span><b>${s.biggest.length}″${s.biggest.weight ? ` · ${s.biggest.weight} lb` : ''}<small class="muted"> ${s.biggest.lakeName ? esc(s.biggest.lakeName) + ' · ' : ''}${fmtDay(s.biggest.caughtAt)}</small></b></div>`).join('')}${lifetime.released ? `<div class="muted small">${lifetime.released} of ${lifetime.n} released${lifetime.inches ? ` · ${U.num(lifetime.inches)} inches of fish measured` : ''}</div>` : ''}</div>`);
+      parts.push(`<h2>Recent catches</h2><div class="list">${all.slice(0, 3).map(c => catchRow(c)).join('')}</div><div class="actions"><button class="btn small ghost" data-action="catches">Open the full catch log (${all.length})</button><button class="btn small ghost" data-action="catch-export">Download CSV</button></div>`);
+    }
+
+    // ---- lakes, pins, buddies ----
+    const favs = S.favorites || [];
+    parts.push(`<h2>Favorite lakes <span class="muted small">(${favs.length})</span></h2>`);
+    if (favs.length) parts.push(`<div class="list">${favs.map(FN.ui.lakeRow).join('')}</div>`);
+    else parts.push(`<p class="muted small">Search for a lake, then tap the <strong>★</strong> on its page to keep it here. Favorites also drive “Best bet this weekend”.</p>`);
+    const pins = S.pins || [];
+    parts.push(`<h2>My pins <span class="muted small">(${pins.length})</span></h2>`);
+    if (pins.length) parts.push(`<div class="list">${pins.slice(0, 6).map(FN.ui.pinRow).join('')}</div>${pins.length > 6 ? `<div class="actions"><button class="btn small ghost" data-action="home">All ${pins.length} pins on the home page</button></div>` : ''}`);
+    else parts.push(`<p class="muted small">No pins yet. Tap the <strong>pin</strong> button on the map to mark a spot.</p>`);
+    if (signed && FN.cloud.available()) {
+      const fr = (S.buddies && S.buddies.friendships) || [];
+      const friends = fr.filter(f => f.status === 'accepted').length, pending = fr.filter(f => f.status === 'pending' && f.addressee_id === S.user.id).length;
+      parts.push(`<button class="card link" data-action="buddies"><div class="row"><div class="trophy">👥</div><div class="grow"><div class="big">Buddies${S.buddies ? ` <span class="muted">· ${friends}</span>` : ''}${pending ? ` <span class="badge">${pending} request${pending === 1 ? '' : 's'}</span>` : ''}</div><div class="muted small">Shared pins, catches and lake reports from your crew</div></div><div class="chev">›</div></div></button>`);
+    }
+    parts.push(a2hsCard(S, 'profile'));
+    parts.push(`<h2>Backup & settings</h2><div class="card"><p class="small">${signed ? `${S.syncing ? 'Syncing…' : S.lastSync ? `Last synced ${U.fmtTime(S.lastSync)}.` : 'Not synced yet.'} Pins, favorites, catches and photos are backed up to your account.` : 'Signed out: pins, favorites and catches live only in this browser. Sign in to back them up.'}</p><div class="actions">${signed ? `<button class="btn ghost small" data-action="sync-now">Sync now</button><button class="btn ghost small" data-action="account">Account settings</button>` : `<button class="btn small" data-action="account">Sign in</button>`}${all.length ? `<button class="btn ghost small" data-action="catch-export">Download catches (CSV)</button>` : ''}${signed ? `<button class="btn ghost small danger" data-action="signout">Sign out</button>` : ''}</div></div>`);
+    parts.push(`<div class="foot">Fish Nasty v${esc(C.version)}</div>`);
+    return parts.join('');
+  }
+
+  // Catch log as a spreadsheet-friendly CSV (one row per fish, conditions included)
+  function catchesCSV(catches) {
+    const cols = ['date', 'time', 'species', 'length_in', 'weight_lb', 'released', 'bait', 'lake', 'lake_id', 'spot', 'lat', 'lon', 'notes', 'sky', 'air_f', 'day_high_f', 'day_low_f', 'water_f', 'wind_mph', 'wind_dir', 'gust_mph', 'pressure_inhg', 'pressure_trend', 'cloud_pct', 'precip_in', 'moon', 'solunar', 'sunrise', 'sunset', 'bite_score_hour', 'bite_score_day'];
+    const q = v => { if (v == null) return ''; const s = String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    const t = iso => (iso ? U.fmtTime(new Date(iso)) : '');
+    const rows = [...catches].sort((a, b) => (a.caughtAt < b.caughtAt ? -1 : 1)).map(c => {
+      const k = c.conditions || {}, d = new Date(c.caughtAt), p = FN.profileFor(c.species);
+      return [d.toLocaleDateString('en-CA'), U.fmtTime(d), p ? p.name : (c.speciesName || c.species), c.length, c.weight, c.released ? 'yes' : 'no', c.bait, c.lakeName, c.lakeId, c.pinName, c.lat, c.lon, c.notes,
+        k.code != null ? FN.weather.describe(k.code)[0] : '', k.temp != null ? Math.round(k.temp) : '', k.dayHi != null ? Math.round(k.dayHi) : '', k.dayLo != null ? Math.round(k.dayLo) : '', k.waterTemp, k.wind != null ? Math.round(k.wind) : '', k.windDir != null ? U.windDir(k.windDir) : '', k.gust != null ? Math.round(k.gust) : '', k.pressure != null ? FN.weather.hPaToInHg(k.pressure) : '', k.pressureTrend, k.cloud, k.precip, k.moonName, k.solunar, t(k.sunrise), t(k.sunset), k.biteScore, k.dayScore].map(q).join(',');
+    });
+    return cols.join(',') + '\n' + rows.join('\n') + '\n';
+  }
+
+  return { account, catchForm, catches, catchRow, buddies, reportForm, finder, finderResults, condLine, profile, a2hsCard, initials, catchesCSV, catchStats };
 })());

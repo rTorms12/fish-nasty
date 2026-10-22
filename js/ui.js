@@ -78,13 +78,14 @@ FN.ui = (() => {
     parts.push(`<button class="card link top-link" data-action="top"><div class="row"><div class="trophy">🏆</div><div class="grow"><div class="big">Lake finder · Top 20</div><div class="muted small">Biggest and most walleye, pike and crappie — statewide, near you, or by county — from every DNR survey</div></div><div class="chev">›</div></div></button>`);
     if (S.user) {
       const pending = (S.buddies && S.buddies.friendships || []).filter(f => f.status === 'pending' && f.addressee_id === S.user.id).length;
-      parts.push(`<div class="card account"><div class="row"><div class="avatar">${esc(((S.profile && S.profile.display_name) || S.user.email || '?').slice(0, 1).toUpperCase())}</div><div class="grow"><div class="big">${esc((S.profile && S.profile.display_name) || S.user.email)}</div><div class="muted small">${S.syncing ? 'Syncing…' : S.lastSync ? 'Synced ' + U.fmtTime(S.lastSync) : 'Signed in'} · pins, favorites and catches are backed up</div></div><button class="icon-btn mini" data-action="account" title="Account">${ICON.edit}</button></div>
+      parts.push(`<div class="card account"><button class="row link-row" data-action="profile"><div class="avatar">${esc(FN.ui.initials(S) || '?')}</div><div class="grow"><div class="big">${esc((S.profile && S.profile.display_name) || S.user.email)}</div><div class="muted small">${S.syncing ? 'Syncing…' : S.lastSync ? 'Synced ' + U.fmtTime(S.lastSync) : 'Signed in'} · ${S.catches.length} catch${S.catches.length === 1 ? '' : 'es'} · ${S.favorites.length} favorite${S.favorites.length === 1 ? '' : 's'} · ${S.pins.length} pin${S.pins.length === 1 ? '' : 's'}</div></div><div class="chev">›</div></button>
         <div class="actions"><button class="btn" data-action="catches">🎣 Catch log${S.catches.length ? ` <em class="count">${S.catches.length}</em>` : ''}</button><button class="btn ghost" data-action="buddies">👥 Buddies${pending ? ` <em class="count hot">${pending}</em>` : ''}</button><button class="btn ghost" data-action="catch-new">+ Log a catch</button></div></div>`);
     } else if (window.supabaseLoadFailed) {
       parts.push(`<div class="card"><div class="eyebrow">Account features unavailable</div><p class="small">This device blocked the sign-in library (cdn.jsdelivr.net / unpkg.com). A content blocker, VPN or DNS filter is the usual cause. Pins, favorites and catches still work on this device.</p></div>`);
     } else if (FN.cloud && FN.cloud.available()) {
       if (S.catches && S.catches.length) parts.push(`<button class="card link" data-action="catches"><div class="row"><div class="trophy">🎣</div><div class="grow"><div class="big">Catch log <span class="muted">· ${S.catches.length}</span></div><div class="muted small">Kept on this device. Sign in to back it up and sync.</div></div><div class="chev">›</div></div></button>`);
     }
+    parts.push(FN.ui.a2hsCard(S, 'home'));
     if (S.nearby && S.nearby.length) {
       parts.push(`<h2>Lakes with depth maps near you</h2><div class="list">${S.nearby.slice(0, 12).map(l => lakeRow({ id: l.id, name: l.name, county: l.county, acres: l.acres })).join('')}</div>`);
     }

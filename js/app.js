@@ -18,7 +18,8 @@
     user: null, profile: null, authMode: 'signin', authMsg: null, authEmail: '', authBusy: false, syncing: false, lastSync: null,
     catches: U.store.get(K.catches, []), tomb: Object.assign({ pins: [], catches: [], favorites: [] }, U.store.get(K.tomb, {})),
     catchForm: null, catchPhotoFile: null, catchBusy: false, openCatch: null, buddies: null,
-    welcome: false, welcomeSeen: U.store.get('fn.welcome', false)
+    welcome: false, welcomeSeen: U.store.get('fn.welcome', false),
+    profileRange: null, installPrompt: null, a2hsDismissed: U.store.get('fn.a2hs', false)
   };
   let reqId = 0;
 
@@ -31,6 +32,7 @@
       : S.view === 'top' ? FN.ui.finder(S)
       : S.view === 'quick' ? FN.ui.quickForecast(S)
       : S.view === 'account' ? FN.ui.account(S)
+      : S.view === 'profile' ? FN.ui.profile(S)
       : S.view === 'catch' ? FN.ui.catchForm(S)
       : S.view === 'catches' ? FN.ui.catches(S)
       : S.view === 'buddies' ? FN.ui.buddies(S)
@@ -40,6 +42,27 @@
     S._keepScroll = false;
     if (body.querySelector('img[data-photo]')) setTimeout(hydratePhotos, 0);
     const fb = document.getElementById('fab-forecast'); if (fb) fb.classList.toggle('on', S.view === 'quick');
+    updateAvatar();
+  }
+  function updateAvatar() {
+    const b = document.getElementById('btn-profile'); if (!b) return;
+    const ini = FN.ui.initials(S);
+    b.classList.toggle('signed', !!ini); b.classList.toggle('on', S.view === 'profile');
+    b.querySelector('.ini').textContent = ini || '';
+    b.title = ini ? `${(S.profile && S.profile.display_name) || S.user.email} · profile` : 'Profile';
+  }
+  function openProfile() {
+    if (S.view !== 'profile') S.prevView = S.view;
+    S.view = 'profile'; location.hash = 'profile'; document.title = 'Profile · Fish Nasty';
+    if (cloudOn() && !S.buddies) loadBuddies(true).catch(() => {});
+    render(); showPanel(); if (isMobile()) setSheet('full');
+  }
+  function exportCatches() {
+    if (!S.catches.length) { toast('No catches to export yet'); return; }
+    const blob = new Blob(['\ufeff' + FN.ui.catchesCSV(S.catches)], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `fish-nasty-catches-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+    toast(`${S.catches.length} catch${S.catches.length === 1 ? '' : 'es'} exported`);
   }
   // Several data loads can land within a few milliseconds of each other; rebuild the panel once per frame
   let renderQueued = false, renderRaf = 0, renderTimer = 0;
@@ -715,6 +738,13 @@
     switch (a) {
       case 'open-lake': openLake(el.dataset.id); break;
       case 'home': goHome(); break;
+      case 'profile': openProfile(); break;
+      case 'profile-range': S.profileRange = el.dataset.range; S._keepScroll = true; rerender(); break;
+      case 'catch-species-filter': S.prevView = S.view; S.catchFilter = { species: el.dataset.code, name: el.dataset.name }; S.openCatch = null; S.view = 'catches'; render(); if (isMobile()) setSheet('full'); break;
+      case 'catch-lake-filter': S.prevView = S.view; S.catchFilter = { lakeId: el.dataset.id || null, name: el.dataset.name }; S.openCatch = null; S.view = 'catches'; render(); if (isMobile()) setSheet('full'); break;
+      case 'catch-export': exportCatches(); break;
+      case 'a2hs-dismiss': S.a2hsDismissed = true; U.store.set('fn.a2hs', true); rerender(); break;
+      case 'a2hs-install': { const ev = S.installPrompt; if (!ev) break; ev.prompt(); ev.userChoice.then(r => { if (r && r.outcome === 'accepted') { S.installPrompt = null; toast('Fish Nasty is on your home screen 📲'); rerender(); } }).catch(() => {}); break; }
       case 'tab': S.tab = el.dataset.tab; render(); if (window.matchMedia('(max-width: 899px)').matches) setSheet('full'); break;
       case 'fav': toggleFav(); break;
       case 'zoom-lake': FN.map.showLake(S.lake, { fit: true }); if (window.matchMedia('(max-width: 899px)').matches) setSheet('collapsed'); break;
@@ -742,7 +772,7 @@
       case 'sheet-open': showPanel(); FN.map.getMap().invalidateSize(); break;
       case 'signout': FN.cloud.signOut().then(() => toast('Signed out')); break;
       case 'sync-now': syncAll().then(() => toast('Synced')).catch(e => toast('Sync failed: ' + e.message)); break;
-      case 'catches': S.prevView = 'home'; S.catchFilter = null; S.view = 'catches'; render(); if (isMobile()) setSheet('full'); break;
+      case 'catches': S.prevView = S.view === 'profile' ? 'profile' : 'home'; S.catchFilter = null; S.view = 'catches'; render(); if (isMobile()) setSheet('full'); break;
       case 'catches-at-pin': { const p = pinById(el.dataset.id); FN.map.closePopups(); S.prevView = S.view === 'catches' ? S.prevView : S.view; S.catchFilter = p ? { pinId: p.id, name: p.name } : null; S.view = 'catches'; render(); if (isMobile()) setSheet('full'); break; }
       case 'catch-filter-clear': S.catchFilter = null; rerender(); break;
       case 'catch-new': FN.map.closePopups(); openCatchForm({ pinId: el.dataset.pinId, lat: el.dataset.lat ? Number(el.dataset.lat) : null, lon: el.dataset.lon ? Number(el.dataset.lon) : null }); break;
@@ -838,7 +868,9 @@
   }
 
   /* ---------- top bar & fabs ---------- */
-  $('#btn-home').addEventListener('click', goHome);
+  $('#btn-profile').addEventListener('click', () => (S.view === 'profile' ? goHome() : openProfile()));
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); S.installPrompt = e; if (['home', 'profile'].includes(S.view)) rerender(); });
+  window.addEventListener('appinstalled', () => { S.installPrompt = null; toast('Fish Nasty is on your home screen 📲'); rerender(); });
   $('#btn-top').addEventListener('click', openTop);
   $('#fab-locate').addEventListener('click', locateNearby);
   $('#fab-forecast').addEventListener('click', () => { if (S.view === 'quick') { S.view = S.lake ? 'lake' : 'home'; render(); } else openQuick(S.location ? 'gps-cached' : 'center'); });
@@ -857,13 +889,15 @@
     const m = location.hash.match(/lake\/(\d{8})/);
     if (m) openLake(m[1]);
     else if (location.hash === '#top') openTop();
-    else if (S.view === 'lake' || S.view === 'top') goHome();
+    else if (location.hash === '#profile') openProfile();
+    else if (['lake', 'top', 'profile'].includes(S.view)) goHome();
   }
   window.addEventListener('hashchange', () => {
     const m = location.hash.match(/lake\/(\d{8})/);
     if (m && (!S.lake || S.lake.id !== m[1] || S.view !== 'lake')) openLake(m[1]);
     else if (location.hash === '#top' && S.view !== 'top') openTop();
-    else if (!m && location.hash !== '#top' && (S.view === 'lake' || S.view === 'top')) goHome();
+    else if (location.hash === '#profile' && S.view !== 'profile') openProfile();
+    else if (!m && !['#top', '#profile'].includes(location.hash) && ['lake', 'top', 'profile'].includes(S.view)) goHome();
     if (S.view === 'pin' && !m) leavePinEditor();
   });
 
