@@ -39,12 +39,14 @@
     if (body.querySelector('img[data-photo]')) setTimeout(hydratePhotos, 0);
   }
   // Several data loads can land within a few milliseconds of each other; rebuild the panel once per frame
-  let renderQueued = false;
+  let renderQueued = false, renderRaf = 0, renderTimer = 0;
   function rerender() {
     S._keepScroll = true;
     if (renderQueued) return;
     renderQueued = true;
-    requestAnimationFrame(() => { renderQueued = false; if (S._keepScroll) render(); });
+    const go = () => { cancelAnimationFrame(renderRaf); clearTimeout(renderTimer); renderQueued = false; if (S._keepScroll) render(); };
+    renderRaf = requestAnimationFrame(go);
+    renderTimer = setTimeout(go, 60); // animation frames pause in background tabs; never wait on them
   }
 
   function toast(msg, ms = 2600) {

@@ -155,6 +155,7 @@ FN.map = (() => {
     if (redraw) overlays.contours.redraw();
   }
 
+  let fitCount = 0;
   function showLake(lake, { fit = true } = {}) {
     if (lakeMarker) { map.removeLayer(lakeMarker); lakeMarker = null; }
     if (!lake || lake.lat == null) return;
@@ -167,10 +168,12 @@ FN.map = (() => {
       const mobile = window.matchMedia('(max-width: 899px)').matches;
       const sheetEl = document.getElementById('sheet');
       const bottomPad = mobile && sheetEl ? Math.min(sheetEl.getBoundingClientRect().height, window.innerHeight * 0.5) : 0;
+      // The first fit after page load jumps straight there (fastest, and immune to paused animation frames); later ones glide
+      const animate = fitCount++ > 0;
       if (lake.bbox) {
         const [w, s, e, n] = lake.bbox;
-        map.fitBounds([[s, w], [n, e]], { paddingTopLeft: [30, 80], paddingBottomRight: [30, bottomPad + 30], maxZoom: 14, animate: true });
-      } else map.setView([lake.lat, lake.lon], 12);
+        map.fitBounds([[s, w], [n, e]], { paddingTopLeft: [30, 80], paddingBottomRight: [30, bottomPad + 30], maxZoom: 14, animate });
+      } else map.setView([lake.lat, lake.lon], 12, { animate });
     }
   }
 
