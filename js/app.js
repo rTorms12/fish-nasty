@@ -13,6 +13,7 @@
     searchList: null, searchQ: '',
     pins: U.store.get(K.pins, []), placeMode: false, editPin: null, prevView: 'home', editColor: null,
     rankings: null, lakeMetrics: null,
+    bestbet: { species: U.store.get('fn.bestSpecies', 'WAE'), items: [], loading: false, error: null, source: null, days: [], computed: 0, sig: '', expanded: false, cache: new Map() },
     finder: Object.assign({ species: 'WAE', mode: 'big', scope: 'state', radius: 50, county: '', minLen: 0, limit: 20 }, U.store.get(K.finder, {})),
     user: null, profile: null, authMode: 'signin', authMsg: null, authEmail: '', authBusy: false, syncing: false, lastSync: null,
     catches: U.store.get(K.catches, []), tomb: Object.assign({ pins: [], catches: [], favorites: [] }, U.store.get(K.tomb, {})),
@@ -189,6 +190,91 @@
   function goHome() {
     S.view = 'home'; location.hash = ''; document.title = 'Fish Nasty';
     render();
+    if (S.favorites.length) runBestBet('favorites').catch(() => {});
+  }
+
+  /* ---------- best bet this weekend ---------- */
+  function weekendDays() {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const dow = today.getDay(); // 0 Sun … 6 Sat
+    if (dow === 0) return [today];
+    const sat = new Date(today.getTime() + ((6 - dow) % 7) * 864e5);
+    const sun = new Date(sat.getTime() + 864e5);
+    return [sat, sun];
+  }
+  const milesBetween = (a, b) => { const R = 3958.8, dLat = (b.lat - a.lat) * Math.PI / 180, dLon = (b.lon - a.lon) * Math.PI / 180; const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLon / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); };
+  async function bestBetCandidates(source) {
+    const BB = S.bestbet;
+    let metrics = S.lakeMetrics;
+    if (!metrics && FN.cloud.available()) { try { metrics = S.lakeMetrics = await FN.cloud.lakeMetrics(); } catch (e) { metrics = null; } }
+    const rowsFor = id => metrics ? metrics.rows.filter(r => r.id === id) : [];
+    const list = [];
+    if (source === 'favorites') {
+      for (const f of S.favorites.slice(0, 12)) {
+        let lat = f.lat, lon = f.lon, acres = f.acres, maxDepth = f.maxDepth;
+        const m = rowsFor(f.id)[0];
+        if (m) { lat = m.lat; lon = m.lon; acres = acres || m.acres; maxDepth = maxDepth || m.maxDepth; }
+        if (lat == null) { try { const l = await FN.dnr.byId(f.id); if (l) { lat = l.lat; lon = l.lon; acres = acres || l.acres; maxDepth = maxDepth || l.maxDepth; } } catch (e) { /* skip */ } }
+        if (lat != null) list.push({ id: f.id, name: f.name, county: f.county, lat, lon, acres, maxDepth });
+      }
+    } else {
+      const map = FN.map.getMap();
+      const here = S.location ? { lat: S.location.lat, lon: S.location.lon } : { lat: map.getCenter().lat, lon: map.getCenter().lng };
+      BB.center = S.location ? 'you' : 'the map center';
+      if (!metrics) throw new Error('Lake data is not available offline yet.');
+      const sp = BB.species === 'ALL' ? 'WAE' : BB.species;
+      // Candidates: lakes within 50 miles with a real sample behind their numbers, ranked by size of fish,
+      // catch rate and lake size so tiny ponds with four netted fish don't float to the top
+      const minN = { WAE: 30, NOP: 20, BLC: 30 }[sp] || 30;
+      const near = metrics.rows
+        .filter(r => r.species === sp && r.lat != null && (r.acres || 0) >= 200 && ((r.n || 0) >= minN || ((r.cpue || 0) >= 3 && (r.nets || 0) >= 3)))
+        .map(r => ({ ...r, dist: milesBetween(here, r) })).filter(r => r.dist <= 50);
+      const quality = r => (((r.n || 0) >= minN ? (r.pctBig || 0) : 0) + Math.min(r.cpue || 0, 30) * 1.5) * Math.log10(Math.max(10, r.acres || 10));
+      near.sort((a, b) => quality(b) - quality(a));
+      for (const r of near.slice(0, 10)) list.push({ id: r.id, name: r.name, county: r.county, lat: r.lat, lon: r.lon, acres: r.acres, maxDepth: r.maxDepth, dist: r.dist });
+    }
+    return list;
+  }
+  function metricLine(id, species) {
+    const sp = species === 'ALL' ? 'WAE' : species;
+    const m = S.lakeMetrics && S.lakeMetrics.rows.find(r => r.id === id && r.species === sp);
+    if (!m) return '';
+    const name = (FN.profileFor(sp) || {}).name || sp;
+    const big = { WAE: 20, NOP: 30, BLC: 11 }[sp];
+    const parts = [];
+    if (m.n) parts.push(`${m.pctBig}% of ${U.num(m.n)} netted ${name.toLowerCase()} were ${big}″+, longest ${m.max}″`);
+    if (m.cpue) parts.push(`${U.num(m.cpue, 1)} per net (${m.year})`);
+    return parts.join(' · ');
+  }
+  async function runBestBet(source, force) {
+    const BB = S.bestbet;
+    source = source || (S.favorites.length ? 'favorites' : null);
+    if (!source) return;
+    const sig = `${source}:${S.favorites.map(f => f.id).join(',')}:${BB.species}`;
+    if (!force && BB.sig === sig && Date.now() - BB.computed < 60 * 60000) return;
+    BB.loading = true; BB.error = null; BB.source = source; BB.days = weekendDays(); rerender();
+    try {
+      const cands = await bestBetCandidates(source);
+      BB.total = cands.length;
+      const results = await Promise.all(cands.map(async c => {
+        try {
+          let w = BB.cache.get(c.id);
+          if (!w || Date.now() - w.t > 30 * 60000) {
+            const [weather, history] = await Promise.all([FN.weather.forecast(c.lat, c.lon), FN.weather.history(c.lat, c.lon).catch(() => null)]);
+            w = { t: Date.now(), weather, history }; BB.cache.set(c.id, w);
+          }
+          const bite = FN.forecast.compute(w.weather, c.lat, c.lon, BB.species, S.catches, { history: w.history, acres: c.acres, maxDepth: c.maxDepth });
+          const scores = BB.days.map(day => { const d = bite.days.find(x => U.sameDay(x.date, day)); return d ? { day: day.toLocaleDateString('en-US', { weekday: 'short' }), score: d.score, rating: d.rating, window: d.windows[0] ? FN.ui.windowText(d.windows[0]) : '' } : null; }).filter(Boolean);
+          if (!scores.length) return null;
+          const best = Math.max(...scores.map(s => s.score));
+          return { id: c.id, name: c.name, county: c.county, dist: c.dist, scores, best, metric: metricLine(c.id, BB.species) };
+        } catch (e) { return null; }
+      }));
+      BB.items = results.filter(Boolean).sort((a, b) => b.best - a.best);
+      BB.sig = sig; BB.computed = Date.now();
+    } catch (e) { BB.error = e.message; }
+    BB.loading = false;
+    if (S.view === 'home') rerender();
   }
 
   /* ---------- quick bite forecast for wherever you are looking ---------- */
@@ -619,6 +705,10 @@
       case 'zoom-lake': FN.map.showLake(S.lake, { fit: true }); if (window.matchMedia('(max-width: 899px)').matches) setSheet('collapsed'); break;
       case 'species': S.species = el.dataset.code; U.store.set(K.species, S.species); S.hourIdx = null; computeBite(); computeQuickBite(); rerender(); break;
       case 'quick-center': openQuick('center'); break;
+      case 'bestbet-species': S.bestbet.species = el.dataset.code; U.store.set('fn.bestSpecies', S.bestbet.species); runBestBet(S.bestbet.source, true); break;
+      case 'bestbet-more': S.bestbet.expanded = !S.bestbet.expanded; rerender(); break;
+      case 'bestbet-favorites': runBestBet('favorites', true); break;
+      case 'bestbet-nearby': (async () => { if (!S.location) { try { S.location = await FN.map.locate(); } catch (e) { toast('Using the map center since location is off.'); } } runBestBet('nearby', true); })(); break;
       case 'quick-gps': openQuick('gps'); break;
       case 'day': S.dayIdx = Number(el.dataset.i); S.hourIdx = null; rerender(); break;
       case 'hour': S.hourIdx = Number(el.dataset.i); rerender(); break;
@@ -720,6 +810,7 @@
       if (cloudOn()) FN.cloud.pushFavorites([fav]).catch(() => {});
     }
     U.store.set(K.favorites, S.favorites); rerender();
+    S.bestbet.sig = '';
   }
 
   /* ---------- top bar & fabs ---------- */
@@ -767,6 +858,7 @@
   }
   routeFromHash();
   if (window.matchMedia('(max-width: 899px)').matches) setSheet(location.hash ? 'half' : 'half');
+  if (S.view === 'home' && S.favorites.length) setTimeout(() => runBestBet('favorites').catch(() => {}), 800);
   const showWelcome = () => { if (S.welcomeSeen || S.user || location.hash.includes('lake/')) return; S.welcome = true; S.authMode = 'signup'; S.prevView = 'home'; S.view = 'account'; render(); if (isMobile()) setSheet('full'); };
   if (FN.cloud.available()) showWelcome(); else window.addEventListener('supabase-ready', showWelcome, { once: true });
 

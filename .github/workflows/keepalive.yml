@@ -1,0 +1,22 @@
+# Keeps the Fish Nasty Supabase project awake. Free-tier projects pause after about a week with no
+# API activity, so this makes one tiny read with the public key twice a week.
+# The key is the same publishable key that ships in the app's JavaScript; it only allows what
+# row-level security permits.
+name: Keep Supabase awake
+
+on:
+  schedule:
+    - cron: '0 12 * * 1,4'   # Mondays and Thursdays, 12:00 UTC (6–7 AM in Minnesota)
+  workflow_dispatch:          # lets you run it by hand from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read one row from the database
+        run: |
+          curl -fsS "https://kmfyzjasrtpgdjcybqtr.supabase.co/rest/v1/refresh_jobs?select=id,status,finished_at&order=id.desc&limit=1" \
+            -H "apikey: sb_publishable_H8YMUAT5TQfWYslYl2cjIw_ELb32Mz0" \
+            -H "Authorization: Bearer sb_publishable_H8YMUAT5TQfWYslYl2cjIw_ELb32Mz0"
+          echo
+          echo "Supabase answered; the project stays awake."

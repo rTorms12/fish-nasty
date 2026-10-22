@@ -99,6 +99,8 @@ Photos live in the private `catch-photos` storage bucket (`{user id}/{catch id}.
 
 The Edge Function `refresh-lakes` re-scans LakeFinder in batches of 60 lakes; a pg_cron job (`refresh-lakes-tick`, every 2 minutes) keeps it moving while a job is running and starts a new one when the last finished more than 30 days ago. `?action=status` on the function reports progress.
 
+A GitHub Actions workflow (`.github/workflows/keepalive.yml`) reads one row from the database every Monday and Thursday so the free-tier project never pauses for inactivity. GitHub turns off scheduled workflows in a repository that has had no commits for 60 days; pushing any change (or running the workflow by hand from the Actions tab) switches it back on.
+
 Auth settings to keep correct in the Supabase dashboard (Authentication → URL Configuration): Site URL `https://fishnasty.netlify.app`, redirect URLs `https://fishnasty.netlify.app/**` and `http://localhost:8765/**`. Supabase's built-in mailer is rate-limited (a few emails per hour); add custom SMTP if buddies sign up in bulk.
 
 ## Rebuilding the Top 20 rankings

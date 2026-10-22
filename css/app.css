@@ -407,6 +407,20 @@ input[type="file"]::file-selector-button { font: inherit; background: var(--pane
 .legend { position: absolute; right: 74px; top: calc(var(--sat) + 66px); background: rgba(16,38,58,.97); border-radius: 14px; padding: 10px 12px; z-index: 950; font-size: 12.5px; box-shadow: var(--shadow); }
 @media (min-width: 900px) { .fabs { top: 14px; right: 16px; } .panel, .legend { top: 14px; right: 86px; } .zoomctl { display: flex; } #zoom-hint { left: calc(var(--panel-w) + 16px); top: 14px; } }
 
+/* ---------- survey trends & best bet ---------- */
+.trend-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.trend-chart { width: 100%; height: auto; display: block; }
+.trend-chart .val { fill: var(--text); font-size: 12px; font-weight: 700; }
+.trend-chart .axis-l { fill: var(--muted); font-size: 12px; }
+.sp-block.trends .sp-head h2 { font-size: 15px; }
+.bestbet .trophy { font-size: 28px; }
+.bestbet .chips { margin: 8px 0; }
+.toprow.bb .s { margin-top: 4px; }
+.dayscore { display: inline-flex; align-items: center; gap: 4px; margin-right: 10px; font-size: 13px; }
+.dayscore em { font-style: normal; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+.dayscore b { font-size: 15px; } .dayscore b.r1 { color: #b7c8d6; } .dayscore b.r2 { color: #63d2b3; } .dayscore b.r3 { color: var(--r3); } .dayscore b.r4 { color: var(--r4); }
+@media (max-width: 380px) { .trend-grid { grid-template-columns: 1fr; } }
+
 /* ---------- lake name labels, onX-style: badge + name ---------- */
 .lake-label span { position: static; transform: none; white-space: normal; background: none; padding: 0; }
 .lake-label .ll { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); width: 132px; display: flex; flex-direction: column; align-items: center; pointer-events: none; }
