@@ -88,7 +88,8 @@
   function showPanel() { document.getElementById('app').classList.remove('panel-closed'); $('#panel-open').classList.add('hidden'); }
   // The X slides the panel off screen on every device; the "Panel" tab (or any lake, search result, pin or tool) brings it back
   function closePanel() {
-    document.getElementById('app').classList.add('panel-closed'); $('#panel-open').classList.remove('hidden');
+    document.getElementById('app').classList.add('panel-closed');
+    if (!isMobile()) $('#panel-open').classList.remove('hidden');   // phones: no tab; any lake, pin, search result, tool or the avatar brings the panel back
     FN.map.getMap().invalidateSize();
   }
   (function dragSetup() {
@@ -170,9 +171,9 @@
     location.hash = `lake/${lake.id}`;
     document.title = `${lake.name} · Fish Nasty`;
     pushRecent(lake);
-    FN.map.showLake(lake, { fit });
+    if (window.matchMedia('(max-width: 899px)').matches) setSheet('full');   // a lake opens full screen; pull the bar down to see the map
+    FN.map.showLake(lake, { fit });   // after the sheet is sized, so the lake is framed in the part of the map the half-height sheet leaves visible
     FN.map.showAccess([]);
-    if (window.matchMedia('(max-width: 899px)').matches) setSheet('half');
     render();
 
     // Load everything in parallel; render as each arrives
