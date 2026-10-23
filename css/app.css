@@ -171,6 +171,18 @@ select { font: inherit; background: var(--panel-2); color: var(--text); border: 
 .alert-banner { display: flex; width: 100%; gap: 10px; align-items: center; text-align: left; border: 0; border-left: 5px solid #7fc8ff; border-radius: 14px; background: var(--panel-2); color: var(--text); padding: 10px 12px; margin: 0 0 10px; }
 .sev-extreme { border-left-color: #ff5a5a !important; background: rgba(255,90,90,.12) !important; } .sev-severe { border-left-color: #ff9d3b !important; background: rgba(255,157,59,.12) !important; } .sev-moderate { border-left-color: #ffd34d !important; } .sev-minor { border-left-color: #7fc8ff !important; }
 .switch.sub { padding-left: 30px; } .radar-note { margin: 0 0 4px 30px; }
+/* personal bests */
+.pb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 6px 0 10px; }
+.pb-card { display: flex; flex-direction: column; text-align: left; border: 1px solid var(--line); background: var(--panel-2); border-radius: 14px; overflow: hidden; color: var(--text); padding: 0; }
+.pb-card:not(.empty):hover { background: var(--panel-3); }
+.pb-card.empty { opacity: .75; }
+.pb-photo { position: relative; height: 112px; background: linear-gradient(135deg, #0f2d47, #0b1f33); display: flex; align-items: center; justify-content: center; }
+.pb-photo .pb-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pb-photo .sp-pic { height: 64px; }
+.pb-trophy { position: absolute; top: 6px; right: 8px; font-size: 18px; filter: drop-shadow(0 1px 2px rgba(0,0,0,.7)); }
+.pb-body { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 2px; }
+.pb-body .t { font-weight: 700; } .pb-body .v b { font-size: 19px; letter-spacing: -.01em; } .pb-body .s { font-size: 12px; color: var(--muted); }
+.pbtag { margin-left: 6px; font-size: 13px; }
 .badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12.5px; font-weight: 800; color: #04141f; }
 .badge.r1 { background: var(--r1); color: #e8f1f8; } .badge.r2 { background: var(--r2); color: #e8f1f8; } .badge.r3 { background: var(--r3); } .badge.r4 { background: var(--r4); }
 .loading { display: flex; gap: 10px; align-items: center; color: var(--muted); padding: 16px 4px; }

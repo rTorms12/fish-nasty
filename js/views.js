@@ -87,7 +87,7 @@ Object.assign(FN.ui, (() => {
   /* ---------------- CATCH LOG ---------------- */
   const catchRow = (c, open = false) => {
     const p = FN.profileFor(c.species);
-    return `<button class="crow ${open ? 'open' : ''}" data-action="catch-open" data-id="${esc(c.id)}">${speciesIcon(c.species, 'md')}<div class="grow"><div class="t">${esc(p ? p.name : (c.speciesName || c.species))}${c.length ? ` · <b>${c.length}″</b>` : ''}${c.weight ? ` · ${c.weight} lb` : ''}${c.released ? ' · released' : ''}</div><div class="s">${c.pinName ? '📍 ' + esc(c.pinName) + ' · ' : c.lakeName ? esc(c.lakeName) + ' · ' : ''}${fmtWhen(c.caughtAt)}${c.shared ? ' · shared' : ''}${c.synced === false ? ' · <em>not backed up yet</em>' : ''}</div></div>${c.photoPath || c.photoLocal ? '<span class="has-photo">📷</span>' : ''}<div class="chev">${open ? '⌄' : '›'}</div></button>`;
+    return `<button class="crow ${open ? 'open' : ''}" data-action="catch-open" data-id="${esc(c.id)}">${speciesIcon(c.species, 'md')}<div class="grow"><div class="t">${esc(p ? p.name : (c.speciesName || c.species))}${c.length ? ` · <b>${c.length}″</b>` : ''}${c.weight ? ` · ${c.weight} lb` : ''}${c.released ? ' · released' : ''}${FN.app && pbIds(FN.app.state.catches).has(c.id) ? '<span class="pbtag" title="Personal best">🏆</span>' : ''}</div><div class="s">${c.pinName ? '📍 ' + esc(c.pinName) + ' · ' : c.lakeName ? esc(c.lakeName) + ' · ' : ''}${fmtWhen(c.caughtAt)}${c.shared ? ' · shared' : ''}${c.synced === false ? ' · <em>not backed up yet</em>' : ''}</div></div>${c.photoPath || c.photoLocal ? '<span class="has-photo">📷</span>' : ''}<div class="chev">${open ? '⌄' : '›'}</div></button>`;
   };
   const condGrid = c => {
     const k = c.conditions || {};
@@ -303,6 +303,52 @@ Object.assign(FN.ui, (() => {
   }
   const fmtDay = iso => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
+  /* ---------------- PERSONAL BESTS ---------------- */
+  const PB_SPECIES = ['WAE', 'NOP', 'BLC', 'LMB'];
+  const spName = c => (FN.profileFor(c.species) || {}).name || c.speciesName || c.species;
+  let pbMemo = { key: '', map: null };
+  // species name -> { code, name, longest, heaviest, n }; recomputed only when lengths/weights change
+  function personalBests(catches) {
+    const list = catches || [];
+    const key = list.map(c => c.id + ':' + (c.length || 0) + ':' + (c.weight || 0) + ':' + (c.photoLocal || c.photoPath ? 1 : 0)).join('|');
+    if (pbMemo.key === key && pbMemo.map) return pbMemo.map;
+    const map = new Map();
+    for (const c of list) {
+      const name = spName(c);
+      const e = map.get(name) || { code: c.species, name, longest: null, heaviest: null, n: 0 };
+      e.n++;
+      if (c.length && (!e.longest || c.length > e.longest.length || (c.length === e.longest.length && c.caughtAt < e.longest.caughtAt))) e.longest = c;
+      if (c.weight && (!e.heaviest || c.weight > e.heaviest.weight || (c.weight === e.heaviest.weight && c.caughtAt < e.heaviest.caughtAt))) e.heaviest = c;
+      map.set(name, e);
+    }
+    pbMemo = { key, map };
+    return map;
+  }
+  const pbFor = (catches, code) => personalBests(catches).get((FN.profileFor(code) || {}).name) || null;
+  const pbIds = catches => { const s = new Set(); for (const e of personalBests(catches).values()) { if (e.longest) s.add(e.longest.id); if (e.heaviest) s.add(e.heaviest.id); } return s; };
+  const pbPhoto = c => (c.photoLocal ? `<img class="pb-img" src="${c.photoLocal}" alt="">` : `<img class="pb-img" data-photo="${esc(c.photoPath)}" alt="">`);
+  function pbCard(code, e) {
+    const p = FN.profileFor(code);
+    if (!e || (!e.longest && !e.heaviest)) return `<div class="pb-card empty"><div class="pb-photo">${speciesIcon(code, 'lg')}</div><div class="pb-body"><div class="t">${esc(p.name)}</div><div class="s">No ${esc(p.name.toLowerCase())} with a length or weight yet</div></div></div>`;
+    const best = e.longest || e.heaviest;
+    const photoCatch = [e.longest, e.heaviest].find(c => c && (c.photoLocal || c.photoPath));
+    const where = c => esc(c.lakeName || c.pinName || '');
+    return `<button class="pb-card" data-action="catch-open" data-id="${esc(best.id)}">
+      <div class="pb-photo">${photoCatch ? pbPhoto(photoCatch) : speciesIcon(code, 'lg')}<span class="pb-trophy">🏆</span></div>
+      <div class="pb-body"><div class="t">${esc(p.name)}</div>
+        ${e.longest ? `<div class="v"><b>${e.longest.length}″</b>${e.longest.weight ? ` <span class="s">${e.longest.weight} lb</span>` : ''}</div><div class="s">${where(e.longest)}${where(e.longest) ? ' · ' : ''}${fmtDay(e.longest.caughtAt)}</div>` : ''}
+        ${e.heaviest && e.heaviest !== e.longest ? `<div class="v"><b>${e.heaviest.weight} lb</b> <span class="s">heaviest${e.heaviest.length ? ` · ${e.heaviest.length}″` : ''}</span></div><div class="s">${where(e.heaviest)}${where(e.heaviest) ? ' · ' : ''}${fmtDay(e.heaviest.caughtAt)}</div>` : ''}
+      </div></button>`;
+  }
+  function personalBestsSection(S) {
+    const PB = personalBests(S.catches);
+    const mainNames = PB_SPECIES.map(c => FN.profileFor(c).name);
+    const cards = PB_SPECIES.map(code => pbCard(code, pbFor(S.catches, code))).join('');
+    const others = [...PB.values()].filter(e => !mainNames.includes(e.name) && (e.longest || e.heaviest)).sort((a, b) => (b.longest ? b.longest.length : 0) - (a.longest ? a.longest.length : 0));
+    const rows = others.map(e => { const b = e.longest || e.heaviest; return `<button class="sp-row" data-action="catch-open" data-id="${esc(b.id)}">${speciesIcon(e.code, 'sm')}<div class="grow"><div class="t">${esc(e.name)}</div><div class="s">${e.longest ? `${e.longest.length}″` : ''}${e.longest && e.heaviest ? ' · ' : ''}${e.heaviest ? `${e.heaviest.weight} lb` : ''}${b.lakeName ? ' · ' + esc(b.lakeName) : ''} · ${fmtDay(b.caughtAt)}</div></div><div class="chev">›</div></button>`; }).join('');
+    return `<h2>Personal bests</h2><div class="pb-grid">${cards}</div>${rows ? `<div class="card"><div class="eyebrow">Other species</div>${rows}</div>` : ''}<p class="muted small">Checked every time you log a catch: a longer or heavier fish than your best for that species takes its place here, photo and all.</p>`;
+  }
+
   function profile(S) {
     const signed = !!S.user;
     const name = signed ? ((S.profile && S.profile.display_name) || S.user.email.split('@')[0]) : 'Your profile';
@@ -311,6 +357,7 @@ Object.assign(FN.ui, (() => {
     const parts = [];
     parts.push(`<div class="lake-head phead"><button class="icon-btn" data-action="home" title="Home">${ICON.back}</button><div class="avatar xl">${ini ? esc(ini) : '👤'}</div><div class="grow"><h1>${esc(name)}</h1><div class="s">${signed ? `${esc(S.user.email)}${since ? ' · since ' + since : ''}` : 'Not signed in · everything here is kept on this device'}</div></div>${signed ? `<button class="icon-btn" data-action="account" title="Account settings">${ICON.edit}</button>` : ''}</div>`);
     if (!signed) parts.push(`<button class="card link signin-card" data-action="account"><div class="row"><div class="avatar">☁️</div><div class="grow"><div class="big">Sign in or create an account</div><div class="muted small">Back up your catches, pins and favorites, sync them to every device, and share with buddies.</div></div><div class="chev">›</div></div></button>`);
+    parts.push(personalBestsSection(S));
 
     // ---- fish tracker ----
     const all = [...S.catches].sort((a, b) => (a.caughtAt < b.caughtAt ? 1 : -1));
@@ -329,8 +376,7 @@ Object.assign(FN.ui, (() => {
       const mc = monthChart(list, range);
       if (mc) parts.push(`<div class="card"><div class="eyebrow">Catches by ${range === 'year' ? 'month' : 'year'}</div>${mc}</div>`);
       if (st.lakes.length) parts.push(`<div class="card"><div class="eyebrow">By lake</div>${st.lakes.slice(0, 8).map(l => `<button class="sp-row" data-action="catch-lake-filter" data-id="${esc(l.id || '')}" data-name="${esc(l.name)}"><div class="grow"><div class="t">${esc(l.name)}</div><div class="s">${[...l.species.entries()].sort((a, b) => b[1] - a[1]).map(([k, v]) => `${v} ${k.toLowerCase()}`).join(', ')}${l.biggest ? ` · biggest ${l.biggest.length}″` : ''}</div></div><div class="n">${l.n}</div><div class="chev">›</div></button>`).join('')}</div>`);
-      const pb = lifetime.species.filter(s => s.biggest).sort((a, b) => b.biggest.length - a.biggest.length);
-      if (pb.length) parts.push(`<div class="card"><div class="eyebrow">Personal bests · all time</div>${pb.map(s => `<div class="irow pb"><span>${speciesIcon(s.code, 'sm')} ${esc(s.name)}</span><b>${s.biggest.length}″${s.biggest.weight ? ` · ${s.biggest.weight} lb` : ''}<small class="muted"> ${s.biggest.lakeName ? esc(s.biggest.lakeName) + ' · ' : ''}${fmtDay(s.biggest.caughtAt)}</small></b></div>`).join('')}${lifetime.released ? `<div class="muted small">${lifetime.released} of ${lifetime.n} released${lifetime.inches ? ` · ${U.num(lifetime.inches)} inches of fish measured` : ''}</div>` : ''}</div>`);
+      if (lifetime.released) parts.push(`<p class="muted small">${lifetime.released} of ${lifetime.n} released all time${lifetime.inches ? ` · ${U.num(lifetime.inches)} inches of fish measured` : ''}</p>`);
       parts.push(`<h2>Recent catches</h2><div class="list">${all.slice(0, 3).map(c => catchRow(c)).join('')}</div><div class="actions"><button class="btn small ghost" data-action="catches">Open the full catch log (${all.length})</button><button class="btn small ghost" data-action="catch-export">Download CSV</button></div>`);
     }
 
@@ -419,5 +465,5 @@ Object.assign(FN.ui, (() => {
     return parts.join('');
   }
 
-  return { account, catchForm, catches, catchRow, buddies, reportForm, finder, finderResults, condLine, profile, a2hsCard, initials, catchesCSV, catchStats, weather, alertCard };
+  return { account, catchForm, catches, catchRow, buddies, reportForm, finder, finderResults, condLine, profile, a2hsCard, initials, catchesCSV, catchStats, weather, alertCard, personalBests };
 })());

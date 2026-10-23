@@ -562,10 +562,14 @@
         else f.photoLocal = f.photoPreview;
       }
       delete f.photoPreview; f.synced = false;
+      const spKey = (FN.profileFor(f.species) || {}).name || f.speciesName || f.species;
+      const prevPB = FN.ui.personalBests(S.catches.filter(c => c.id !== f.id)).get(spKey) || {};
       const i = S.catches.findIndex(c => c.id === f.id); if (i >= 0) S.catches[i] = f; else S.catches.unshift(f);
       U.store.set(K.catches, S.catches);
       if (cloudOn()) { try { const r = await FN.cloud.pushCatches([f]); f.synced = true; if (r && r[0]) f.serverId = r[0].id; U.store.set(K.catches, S.catches); } catch (e) { toast('Saved on this device; it syncs when you are back online'); } }
-      toast(i >= 0 ? 'Catch updated' : 'Catch logged 🎣');
+      const newLen = !!f.length && (!prevPB.longest || f.length > prevPB.longest.length), newWt = !!f.weight && (!prevPB.heaviest || f.weight > prevPB.heaviest.weight);
+      if (newLen || newWt) toast(`🏆 New personal best ${spKey.toLowerCase()}: ${[newLen ? f.length + '″' : null, newWt ? f.weight + ' lb' : null].filter(Boolean).join(' and ')}! It's on your profile.`, 5000);
+      else toast(i >= 0 ? 'Catch updated' : 'Catch logged 🎣');
       S.catchForm = null; S.catchPhotoFile = null; S.catchBusy = false;
       S.view = S.prevView && S.prevView !== 'catch' ? S.prevView : 'home';
       if (S.view === 'lake' && !S.lake) S.view = 'home';
@@ -861,7 +865,8 @@
         S.openCatch = S.openCatch === el.dataset.id ? null : el.dataset.id;
         if (S.view !== 'catches') {   // tapped from a pin or lake page: open the log scoped to that spot, with this catch expanded
           const c = S.catches.find(x => x.id === el.dataset.id); const p = c && c.pinId ? pinById(c.pinId) : null;
-          S.openCatch = el.dataset.id; S.prevView = S.view; S.catchFilter = p ? { pinId: p.id, name: p.name } : null; S.view = 'catches'; render(); if (isMobile()) setSheet('full'); break;
+          const bySpecies = S.view === 'profile' && c ? { species: c.species, name: (FN.profileFor(c.species) || {}).name || c.species } : null;   // from a personal-best card: all catches of that species
+          S.openCatch = el.dataset.id; S.prevView = S.view; S.catchFilter = bySpecies || (p ? { pinId: p.id, name: p.name } : null); S.view = 'catches'; render(); if (isMobile()) setSheet('full'); break;
         }
         rerender(); break;
       }
