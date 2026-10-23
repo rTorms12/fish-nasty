@@ -1,5 +1,5 @@
 /* Fish Nasty — service worker: offline app shell + cached data */
-const VERSION = 'fn-v1.11.0';
+const VERSION = 'fn-v1.11.1';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/app.css',
   './js/config.js', './js/species.js', './js/dnr.js', './js/weather.js', './js/solunar.js', './js/forecast.js', './js/map.js', './js/ui.js', './js/views.js', './js/cloud.js', './js/app.js',
