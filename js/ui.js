@@ -48,7 +48,7 @@ FN.ui = (() => {
   function home(S) {
     const favs = S.favorites || [];
     const parts = [];
-    parts.push(`<div class="hero"><div class="logo">${ICON.fish}</div><div><h1>Fish Nasty</h1><p>Minnesota lake maps, DNR surveys, stocking records and a bite forecast.</p></div></div>`);
+    parts.push(`<div class="hero"><div class="logo"><img src="icons/icon-192.png" alt="" width="48" height="48" decoding="async"></div><div><h1>Fish Nasty</h1><p>Minnesota lake maps, DNR surveys, stocking records and a bite forecast.</p></div></div>`);
     parts.push(alertBanner(S.homeAlerts, 'weather-here'));
     parts.push(FN.ui.a2hsCard(S));
     if (!S.user && FN.cloud && FN.cloud.available()) {

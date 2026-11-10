@@ -19,21 +19,20 @@ FN.weather = (() => {
   };
   const describe = code => WMO[code] || ['—', '🌡️'];
 
-  async function forecast(lat, lon) {
-    const key = `${lat.toFixed(3)},${lon.toFixed(3)}`;
-    const hit = cache.get(key);
-    if (hit && Date.now() - hit.t < 30 * 60 * 1000) return hit.data;
-    const p = new URLSearchParams({
-      latitude: lat.toFixed(4), longitude: lon.toFixed(4),
-      hourly: 'temperature_2m,apparent_temperature,relative_humidity_2m,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover,precipitation,precipitation_probability,weather_code,is_day,shortwave_radiation',
-      daily: 'sunrise,sunset,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,weather_code',
-      current: 'temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,pressure_msl,cloud_cover,weather_code,precipitation,is_day',
-      temperature_unit: 'fahrenheit', wind_speed_unit: 'mph', precipitation_unit: 'inch',
-      timezone: C.tz, past_days: '2', forecast_days: '8'
-    });
-    const r = await fetch(`${C.weather}?${p.toString()}`);
-    if (!r.ok) throw new Error('Weather request failed');
-    const j = await r.json();
+  const FRESH = 30 * 60 * 1000, HIST_FRESH = 6 * 3600 * 1000;
+  const fkey = (lat, lon) => `${lat.toFixed(3)},${lon.toFixed(3)}`;
+  const hkey = (lat, lon) => `${lat.toFixed(2)},${lon.toFixed(2)}`;
+  const forecastParams = (lats, lons) => new URLSearchParams({
+    latitude: lats, longitude: lons,
+    hourly: 'temperature_2m,apparent_temperature,relative_humidity_2m,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover,precipitation,precipitation_probability,weather_code,is_day,shortwave_radiation',
+    daily: 'sunrise,sunset,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,weather_code',
+    current: 'temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,pressure_msl,cloud_cover,weather_code,precipitation,is_day',
+    temperature_unit: 'fahrenheit', wind_speed_unit: 'mph', precipitation_unit: 'inch',
+    timezone: C.tz, past_days: '2', forecast_days: '8'
+  });
+  const historyParams = (lats, lons) => new URLSearchParams({ latitude: lats, longitude: lons, daily: 'temperature_2m_mean,temperature_2m_max,temperature_2m_min', temperature_unit: 'fahrenheit', timezone: C.tz, past_days: '45', forecast_days: '8' });
+
+  function parseForecast(j) {
     const U = FN.util;
     const h = j.hourly;
     const hours = h.time.map((t, i) => ({
@@ -54,7 +53,7 @@ FN.weather = (() => {
       code: d.weather_code[i]
     }));
     const c = j.current || {};
-    const data = {
+    return {
       lat: j.latitude, lon: j.longitude, elevation: j.elevation,
       fetched: new Date(),
       current: {
@@ -64,26 +63,49 @@ FN.weather = (() => {
       },
       hours, days
     };
-    cache.set(key, { t: Date.now(), data });
-    return data;
   }
+  const parseHistory = j => { const d = j.daily; return d.time.map((t, i) => ({ date: FN.util.parseLocal(t), mean: d.temperature_2m_mean[i], hi: d.temperature_2m_max[i], lo: d.temperature_2m_min[i] })).filter(x => x.mean != null); };
+
+  // One entry per spot: { t, data } once loaded, { p } while a request is in the air (so two screens asking at once share it)
+  function cached(map, key, maxAge, load) {
+    const hit = map.get(key);
+    if (hit && hit.data && Date.now() - hit.t < maxAge) return Promise.resolve(hit.data);
+    if (hit && hit.p) return hit.p;
+    const p = load().then(data => { map.set(key, { t: Date.now(), data }); return data; }, e => { if (map.get(key) && map.get(key).p === p) map.delete(key); throw e; });
+    map.set(key, Object.assign({}, hit, { p }));
+    return p;
+  }
+  const getJSON = (params, what) => fetch(`${C.weather}?${params.toString()}`).then(r => { if (!r.ok) throw new Error(what + ' request failed'); return r.json(); });
+
+  const forecast = (lat, lon) => cached(cache, fkey(lat, lon), FRESH, () => getJSON(forecastParams(lat.toFixed(4), lon.toFixed(4)), 'Weather').then(parseForecast));
 
   const hPaToInHg = hpa => (hpa * 0.02953).toFixed(2);
 
   // Daily mean air temperature for the past 45 days plus the forecast week: feeds the water-temperature model
   const histCache = new Map();
-  async function history(lat, lon) {
-    const key = `${lat.toFixed(2)},${lon.toFixed(2)}`;
-    const hit = histCache.get(key);
-    if (hit && Date.now() - hit.t < 6 * 3600 * 1000) return hit.data;
-    const p = new URLSearchParams({ latitude: lat.toFixed(4), longitude: lon.toFixed(4), daily: 'temperature_2m_mean,temperature_2m_max,temperature_2m_min', temperature_unit: 'fahrenheit', timezone: C.tz, past_days: '45', forecast_days: '8' });
-    const r = await fetch(`${C.weather}?${p.toString()}`);
-    if (!r.ok) throw new Error('History request failed');
-    const j = await r.json();
-    const d = j.daily;
-    const data = d.time.map((t, i) => ({ date: FN.util.parseLocal(t), mean: d.temperature_2m_mean[i], hi: d.temperature_2m_max[i], lo: d.temperature_2m_min[i] })).filter(x => x.mean != null);
-    histCache.set(key, { t: Date.now(), data });
-    return data;
+  const history = (lat, lon) => cached(histCache, hkey(lat, lon), HIST_FRESH, () => getJSON(historyParams(lat.toFixed(4), lon.toFixed(4)), 'History').then(parseHistory));
+
+  // Several lakes at once (weekend rankings): Open-Meteo takes comma-separated coordinates and answers with one result per point,
+  // so ten lakes cost two requests instead of twenty. Results land in the same caches forecast() and history() read.
+  async function prefetch(points) {
+    const pts = (points || []).filter(p => p && p.lat != null && p.lon != null);
+    const batch = (map, keyOf, maxAge, paramsOf, parse, what) => {
+      const seen = new Set();
+      const need = pts.filter(p => { const k = keyOf(p.lat, p.lon), hit = map.get(k); if (seen.has(k) || (hit && (hit.p || (hit.data && Date.now() - hit.t < maxAge)))) return false; seen.add(k); return true; });
+      if (need.length < 2) return Promise.resolve();
+      const all = getJSON(paramsOf(need.map(p => p.lat.toFixed(4)).join(','), need.map(p => p.lon.toFixed(4)).join(',')), what).then(j => (Array.isArray(j) ? j : [j]));
+      need.forEach((p, i) => {
+        const k = keyOf(p.lat, p.lon);
+        const mine = all.then(list => { if (!list[i]) throw new Error(what + ' missing'); const data = parse(list[i]); map.set(k, { t: Date.now(), data }); return data; });
+        mine.catch(() => { if (map.get(k) && map.get(k).p === mine) map.delete(k); });
+        map.set(k, Object.assign({}, map.get(k), { p: mine }));
+      });
+      return all.then(() => {}, () => {});
+    };
+    await Promise.all([
+      batch(cache, fkey, FRESH, forecastParams, parseForecast, 'Weather'),
+      batch(histCache, hkey, HIST_FRESH, historyParams, parseHistory, 'History')
+    ]);
   }
 
   // Active National Weather Service alerts for a point (warnings, watches, advisories). Never blocks: returns [] on any failure.
@@ -106,5 +128,5 @@ FN.weather = (() => {
     } catch (e) { return hit ? hit.data : []; }
   }
 
-  return { forecast, history, describe, hPaToInHg, alerts };
+  return { forecast, history, prefetch, describe, hPaToInHg, alerts };
 })();

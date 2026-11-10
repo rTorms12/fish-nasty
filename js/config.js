@@ -3,7 +3,7 @@ window.FN = window.FN || {};
 
 FN.config = {
   appName: 'Fish Nasty',
-  version: '1.12.0',
+  version: '1.13.0',
   tz: 'America/Chicago',
 
   // Minnesota DNR LakeFinder (public JSON/HTML endpoints, CORS enabled)
@@ -109,7 +109,7 @@ FN.util = {
   clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); },
   store: {
     get(k, def) { try { const v = localStorage.getItem(k); return v == null ? def : JSON.parse(v); } catch (e) { return def; } },
-    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } }
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; /* storage full or unavailable */ } }
   },
   depthBand(ft) {
     const bands = FN.config.depthBands;

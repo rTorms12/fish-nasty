@@ -11,7 +11,7 @@ FN.solunar = (() => {
   }
   function phaseIcon(phase) {
     const icons = ['🌑', '🌒', '🌓', '🌔', '🌕', '🌖', '🌗', '🌘'];
-    return icons[Math.round(phase * 8) % 8];
+    return `<span class="moon">${icons[Math.round(phase * 8) % 8]}</span>`;
   }
 
   // Moon overhead (transit) and underfoot times for a local calendar day

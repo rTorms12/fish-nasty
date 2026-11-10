@@ -26,8 +26,29 @@
 
   /* ---------- rendering ---------- */
   const body = $('#sheet-body');
+  let lastScreen = '';
+  // What is on screen, for telling "same screen refreshed" from "moved to another screen"
+  const screenId = () => `${S.view}|${S.view === 'lake' && S.lake ? S.lake.id + '|' + S.tab : ''}|${S.view === 'pin' ? S.editPin : ''}|${S.view === 'catch' && S.catchForm ? S.catchForm.id || 'new' : ''}`;
+  // Data arriving in the background (a sync finishing, a sign-in event when the phone wakes) re-draws the panel.
+  // That must never wipe what someone is in the middle of typing, so typed values ride across the re-draw.
+  function keepInputs() {
+    const els = body.querySelectorAll('input[id], textarea[id], select[id]');
+    if (!els.length) return null;
+    const active = document.activeElement;
+    return [...els].filter(el => el.type !== 'file').map(el => ({ id: el.id, value: el.value, checked: el.checked, box: el.type === 'checkbox' || el.type === 'radio', focus: el === active, a: el === active && 'selectionStart' in el ? el.selectionStart : null, b: el === active && 'selectionEnd' in el ? el.selectionEnd : null }));
+  }
+  function restoreInputs(saved) {
+    for (const k of saved) {
+      const el = document.getElementById(k.id); if (!el || !body.contains(el)) continue;
+      if (k.box) el.checked = k.checked; else if (el.value !== k.value) el.value = k.value;
+      if (k.focus) { try { el.focus({ preventScroll: true }); if (k.a != null) el.setSelectionRange(k.a, k.b); } catch (e) { /* some input types have no selection */ } }
+    }
+  }
   function render() {
     const scroll = body.scrollTop;
+    const screen = screenId(), same = screen === lastScreen;
+    const typed = same ? keepInputs() : null;
+    lastScreen = screen;
     const pinToEdit = S.view === 'pin' ? S.pins.find(p => p.id === S.editPin) : null;
     body.innerHTML = pinToEdit ? FN.ui.pinEditor(Object.assign({}, pinToEdit, S.editColor ? { color: S.editColor } : {}))
       : S.view === 'top' ? FN.ui.finder(S)
@@ -40,12 +61,24 @@
       : S.view === 'buddies' ? FN.ui.buddies(S)
       : S.view === 'report' ? FN.ui.reportForm(S)
       : (S.view === 'lake' && S.lake ? FN.ui.lake(S) : FN.ui.home(S));
-    if (S._keepScroll) body.scrollTop = scroll; else body.scrollTop = 0;
+    if (S._keepScroll && same) body.scrollTop = scroll; else body.scrollTop = 0;
     S._keepScroll = false;
+    if (typed) restoreInputs(typed);
+    if (!same) { body.classList.remove('enter'); void body.offsetWidth; body.classList.add('enter'); }   // a new screen eases in; refreshes do not
+    syncHistory();
+    syncTitle();
     if (body.querySelector('img[data-photo]')) setTimeout(hydratePhotos, 0);
     const fb = document.getElementById('fab-forecast'); if (fb) fb.classList.toggle('on', S.view === 'quick');
     const fw = document.getElementById('fab-weather'); if (fw) fw.classList.toggle('on', S.view === 'weather');
     updateAvatar();
+  }
+  // The tab / task-switcher title follows the screen. `force` re-announces it after a history step, because browsers
+  // show the title they stored with the history entry until the page sets one again.
+  const TITLES = { top: 'Lake finder', profile: 'Profile', weather: 'Weather', catches: 'Catch log', buddies: 'Buddies', account: 'Account', quick: 'Bite forecast', catch: 'Log a catch' };
+  function syncTitle(force) {
+    const t = S.view === 'lake' && S.lake ? `${S.lake.name} · Fish Nasty` : TITLES[S.view] ? `${TITLES[S.view]} · Fish Nasty` : 'Fish Nasty';
+    if (force && document.title === t) document.title = t + ' ';
+    if (document.title !== t) document.title = t;
   }
   function updateAvatar() {
     const b = document.getElementById('btn-profile'); if (!b) return;
@@ -56,7 +89,7 @@
   }
   function openProfile() {
     if (S.view !== 'profile') S.prevView = S.view;
-    S.view = 'profile'; location.hash = 'profile'; document.title = 'Profile · Fish Nasty';
+    S.view = 'profile'; document.title = 'Profile · Fish Nasty';
     if (cloudOn() && !S.buddies) loadBuddies(true).catch(() => {});
     render(); showPanel(); if (isMobile()) setSheet('full');
   }
@@ -102,6 +135,9 @@
   window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(applySheet, 80); });
   const maxSheetHeight = () => { const tb = $('.topbar').getBoundingClientRect(); return Math.max(120, window.innerHeight - tb.bottom - 12); };
   function showPanel() { document.getElementById('app').classList.remove('panel-closed'); $('#panel-open').classList.add('hidden'); }
+  const panelClosed = () => document.getElementById('app').classList.contains('panel-closed');
+  // Make room to see the map on a phone. A panel that was closed on purpose stays closed.
+  function peekMap() { if (isMobile() && !panelClosed()) setSheet('collapsed'); }
   // The X slides the panel off screen on every device; the "Panel" tab (or any lake, search result, pin or tool) brings it back
   function closePanel() {
     document.getElementById('app').classList.add('panel-closed');
@@ -111,16 +147,21 @@
   (function dragSetup() {
     const handle = $('#sheet-handle'), body = $('#sheet-body');
     const visibleNow = () => window.innerHeight - sheet.getBoundingClientRect().top;
-    let startY = 0, startVis = 0, lastY = 0, lastT = 0, vel = 0, dragging = false, moved = false;
-    function begin(y) { dragging = true; moved = false; startY = lastY = y; lastT = performance.now(); vel = 0; startVis = visibleNow(); sheet.classList.add('dragging'); }
+    let startY = 0, startVis = 0, curVis = 0, fullH = 0, lastY = 0, lastT = 0, vel = 0, dragging = false, moved = false;
+    // While a finger is down the sheet moves by its transform alone. The --off variable (which also sets the content's
+    // bottom padding, a layout change) is only written once, when the finger lifts.
+    function begin(y) { dragging = true; moved = false; startY = lastY = y; lastT = performance.now(); vel = 0; fullH = sheetFull(); startVis = curVis = visibleNow(); sheet.classList.add('dragging'); }
     function move(y) {
       const dy = y - startY; if (Math.abs(dy) > 4) moved = true;
       const now = performance.now(); if (now - lastT > 0) vel = (y - lastY) / (now - lastT); lastY = y; lastT = now;   // px per ms, + = down
-      setOffset(U.clamp(startVis - dy, 40, sheetFull()));
+      curVis = U.clamp(startVis - dy, 40, fullH);
+      sheet.style.transform = `translateY(${Math.round(fullH - curVis)}px)`;
     }
     function finish(tapCycles) {
-      if (!dragging) return; dragging = false; sheet.classList.remove('dragging');
-      const vis = visibleNow(), max = sheetFull(), half = halfVisible(), cur = SNAPS.find(s => sheet.classList.contains(s)) || 'half';
+      if (!dragging) return; dragging = false;
+      if (performance.now() - lastT > 90) vel = 0;   // the finger paused before lifting: a placement, not a flick
+      const vis = moved ? curVis : startVis, max = fullH || sheetFull(), half = halfVisible(), cur = SNAPS.find(s => sheet.classList.contains(s)) || 'half';
+      sheet.classList.remove('dragging'); sheet.style.transform = '';   // hand back to the CSS variable; the snap below animates from where the finger left it
       if (!moved) { if (tapCycles) setSheet(cur === 'collapsed' ? 'half' : cur === 'half' ? 'full' : 'half'); else applySheet(); return; }   // tap on the bar: collapsed -> half -> full -> half
       if (vel > 0.6) { if (vis > half + 60) setSheet('half'); else closePanel(); return; }     // quick flick down: full -> half, anything lower -> closed
       if (vel < -0.6) { setSheet('full'); return; }                                           // quick flick up
@@ -129,19 +170,17 @@
       else { sheetCustom = Math.round(vis); sheet.classList.remove(...SNAPS); sheet.classList.add('custom'); applySheet(); }   // leave it where it was dropped
     }
     // The bar: drag to resize, tap to cycle
-    handle.addEventListener('pointerdown', e => { if (!isMobile()) return; begin(e.clientY); handle.setPointerCapture(e.pointerId); });
+    handle.addEventListener('pointerdown', e => { if (!isMobile()) return; begin(e.clientY); try { handle.setPointerCapture(e.pointerId); } catch (err) { /* pointer already gone */ } });
     handle.addEventListener('pointermove', e => { if (dragging) move(e.clientY); });
     const end = () => finish(true);
     handle.addEventListener('pointerup', end); handle.addEventListener('pointercancel', end);
-    // The content: when it is scrolled to the top, pulling down drags the sheet instead of over-scrolling (swipe down to close)
-    let tracking = false, took = false, tx = 0, ty = 0;
-    body.addEventListener('touchstart', e => {
-      if (!isMobile() || e.touches.length !== 1 || e.target.closest('input, textarea, select, svg')) { tracking = false; return; }
-      tracking = true; took = false; tx = e.touches[0].clientX; ty = e.touches[0].clientY;
-    }, { passive: true });
-    body.addEventListener('touchmove', e => {
+    // The content: when it is scrolled to the top, pulling down drags the sheet instead of over-scrolling (swipe down to close).
+    // The move/end listeners go on the touched element itself: a touch keeps reporting to the element it started on, even if a
+    // background refresh replaces the panel's content in the middle of the swipe (listeners on the panel would go deaf).
+    let tracking = false, took = false, tx = 0, ty = 0, tgt = null;
+    const onMove = e => {
       if (!tracking) return;
-      const t = e.touches[0];
+      const t = e.touches[0]; if (!t) return;
       if (!took) {
         const dx = t.clientX - tx, dy = t.clientY - ty;
         if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;                                                 // too early to tell
@@ -150,9 +189,18 @@
       }
       if (e.cancelable) e.preventDefault();
       move(t.clientY);
-    }, { passive: false });
-    const endTouch = () => { if (took) finish(false); tracking = false; took = false; };
-    body.addEventListener('touchend', endTouch); body.addEventListener('touchcancel', endTouch);
+    };
+    const onEnd = () => {
+      if (took) finish(false);
+      tracking = false; took = false;
+      if (tgt) { tgt.removeEventListener('touchmove', onMove); tgt.removeEventListener('touchend', onEnd); tgt.removeEventListener('touchcancel', onEnd); tgt = null; }
+    };
+    body.addEventListener('touchstart', e => {
+      if (tgt) onEnd();
+      if (!isMobile() || e.touches.length !== 1 || e.target.closest('input, textarea, select, svg')) { tracking = false; return; }
+      tracking = true; took = false; tx = e.touches[0].clientX; ty = e.touches[0].clientY;
+      tgt = e.target; tgt.addEventListener('touchmove', onMove, { passive: false }); tgt.addEventListener('touchend', onEnd); tgt.addEventListener('touchcancel', onEnd);
+    }, { passive: true });
   })();
 
   /* ---------- search ---------- */
@@ -201,7 +249,6 @@
       if (!lake) { toast('Could not find that lake in LakeFinder.'); S.view = 'home'; render(); return; }
     }
     S.lake = lake; S.loading.lake = false;
-    location.hash = `lake/${lake.id}`;
     document.title = `${lake.name} · Fish Nasty`;
     pushRecent(lake);
     if (window.matchMedia('(max-width: 899px)').matches) setSheet('full');   // a lake opens full screen; pull the bar down to see the map
@@ -239,14 +286,14 @@
   }
 
   function pushRecent(lake) {
-    const item = { id: lake.id, name: lake.name, county: lake.county, town: lake.town, acres: lake.acres, maxDepth: lake.maxDepth };
+    const item = { id: lake.id, name: lake.name, county: lake.county, town: lake.town, acres: lake.acres, maxDepth: lake.maxDepth, lat: lake.lat, lon: lake.lon };
     S.recents = [item, ...S.recents.filter(r => r.id !== lake.id)].slice(0, 8);
     U.store.set(K.recents, S.recents);
     S.lastLake = item; U.store.set(K.lastLake, item);
   }
 
   function goHome() {
-    S.view = 'home'; location.hash = ''; document.title = 'Fish Nasty';
+    S.view = 'home'; document.title = 'Fish Nasty';
     render();
     if (isMobile() && sheet.classList.contains('full')) setSheet('half');   // home shows the map again
     if (S.favorites.length) runBestBet('favorites').catch(() => {});
@@ -264,24 +311,30 @@
   const milesBetween = (a, b) => { const R = 3958.8, dLat = (b.lat - a.lat) * Math.PI / 180, dLon = (b.lon - a.lon) * Math.PI / 180; const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLon / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); };
   async function bestBetCandidates(source) {
     const BB = S.bestbet;
-    let metrics = S.lakeMetrics;
-    if (!metrics && FN.cloud.available()) { try { metrics = S.lakeMetrics = await FN.cloud.lakeMetrics(); } catch (e) { metrics = null; } }
-    const rowsFor = id => metrics ? metrics.rows.filter(r => r.id === id) : [];
     const list = [];
     if (source === 'favorites') {
-      for (const f of S.favorites.slice(0, 12)) {
+      const favs = S.favorites.slice(0, 12);
+      try { await favoriteMetrics(favs.map(f => f.id)); } catch (e) { /* offline: coordinates saved with the favorite still work */ }
+      const rowsFor = id => (S.lakeMetrics ? S.lakeMetrics.rows.filter(r => r.id === id) : []);
+      let learned = false;
+      for (const f of favs) {
         let lat = f.lat, lon = f.lon, acres = f.acres, maxDepth = f.maxDepth;
         const m = rowsFor(f.id)[0];
-        if (m) { lat = m.lat; lon = m.lon; acres = acres || m.acres; maxDepth = maxDepth || m.maxDepth; }
+        if (m && lat == null) { lat = m.lat; lon = m.lon; }
+        if (m) { acres = acres || m.acres; maxDepth = maxDepth || m.maxDepth; }
         if (lat == null) { try { const l = await FN.dnr.byId(f.id); if (l) { lat = l.lat; lon = l.lon; acres = acres || l.acres; maxDepth = maxDepth || l.maxDepth; } } catch (e) { /* skip */ } }
+        if (lat != null && f.lat == null) { f.lat = lat; f.lon = lon; learned = true; }   // remember it: next time needs no lookup at all
         if (lat != null) list.push({ id: f.id, name: f.name, county: f.county, lat, lon, acres, maxDepth });
       }
+      if (learned) U.store.set(K.favorites, S.favorites);
     } else {
       const map = FN.map.getMap();
       const here = S.location ? { lat: S.location.lat, lon: S.location.lon } : { lat: map.getCenter().lat, lon: map.getCenter().lng };
       BB.center = S.location ? 'you' : 'the map center';
-      if (!metrics) throw new Error('Lake data is not available offline yet.');
       const sp = BB.species === 'ALL' ? 'WAE' : BB.species;
+      let metrics = null;
+      try { metrics = await ensureMetrics(sp); } catch (e) { metrics = null; }
+      if (!metrics) throw new Error('Lake data is not available offline yet.');
       // Candidates: lakes within 50 miles with a real sample behind their numbers, ranked by size of fish,
       // catch rate and lake size so tiny ponds with four netted fish don't float to the top
       const minN = { WAE: 30, NOP: 20, BLC: 30, LMB: 20 }[sp] || 30;
@@ -302,8 +355,28 @@
     const big = { WAE: 20, NOP: 30, BLC: 11, LMB: 15 }[sp];
     const parts = [];
     if (m.n) parts.push(`${m.pctBig}% of ${U.num(m.n)} ${sp === 'LMB' ? 'sampled' : 'netted'} ${name.toLowerCase()} were ${big}″+, longest ${m.max}″`);
-    if (m.cpue) parts.push(`${U.num(m.cpue, 1)} per net (${m.year})`);
+    if (m.cpue) parts.push(`${U.num(m.cpue, 1)} per ${/electrofishing/i.test(m.gear || '') ? 'hour of electrofishing' : 'net'} (${m.year})`);
     return parts.join(' · ');
+  }
+  // Statewide survey metrics arrive one species at a time (one cached request each) and collect in S.lakeMetrics
+  async function ensureMetrics(sp) {
+    if (!FN.cloud.hasMetrics()) return null;
+    if (S.lakeMetrics && S.lakeMetrics.have[sp]) return S.lakeMetrics;
+    const d = await FN.cloud.lakeMetrics(sp);
+    const M = S.lakeMetrics || (S.lakeMetrics = { lakes: 0, updated: null, rows: [], have: {}, favs: {} });
+    if (!M.have[sp]) { M.rows = M.rows.filter(r => r.species !== sp).concat(d.rows); M.have[sp] = true; M.lakes = d.lakes; M.updated = d.updated; }
+    return M;
+  }
+  // Just the favorites' rows (a tiny request) so the home page never pulls the statewide list
+  async function favoriteMetrics(ids) {
+    if (!FN.cloud.hasMetrics()) return;
+    const M = S.lakeMetrics || (S.lakeMetrics = { lakes: 0, updated: null, rows: [], have: {}, favs: {} });
+    const need = ids.filter(id => !M.favs[id]);
+    if (!need.length) return;
+    const rows = await FN.cloud.lakeMetricsFor(need);
+    const seen = new Set(M.rows.map(r => r.id + r.species));
+    for (const r of rows) if (!seen.has(r.id + r.species)) M.rows.push(r);
+    for (const id of need) M.favs[id] = true;
   }
   async function runBestBet(source, force) {
     const BB = S.bestbet;
@@ -315,6 +388,7 @@
     try {
       const cands = await bestBetCandidates(source);
       BB.total = cands.length;
+      await FN.weather.prefetch(cands.filter(c => { const w = BB.cache.get(c.id); return !w || Date.now() - w.t > 30 * 60000; }));   // every lake's weather in one round trip
       const results = await Promise.all(cands.map(async c => {
         try {
           let w = BB.cache.get(c.id);
@@ -402,20 +476,23 @@
   /* ---------- lake finder (Top 20 + filters) ---------- */
   async function openTop() {
     closeSearch();
-    S.view = 'top'; location.hash = 'top'; document.title = 'Lake finder · Fish Nasty';
+    S.view = 'top'; document.title = 'Lake finder · Fish Nasty';
     render();
     if (isMobile()) setSheet('full');
     if (!S.rankings && !S.loading.rankings) {
       S.loading.rankings = true;
       fetch('data/rankings.json', { cache: 'no-cache' }).then(r => (r.ok ? r.json() : null)).then(j => { S.rankings = j; }).catch(() => {})
-        .finally(() => { S.loading.rankings = false; if (S.view === 'top' && !S.lakeMetrics) rerender(); });
+        .finally(() => { S.loading.rankings = false; if (S.view === 'top') rerender(); });
     }
-    if (!S.lakeMetrics && !S.loading.metrics && FN.cloud.available()) {
-      S.loading.metrics = true; rerender();
-      try { S.lakeMetrics = await FN.cloud.lakeMetrics(); } catch (e) { S.errors.metrics = e.message; }
-      S.loading.metrics = false;
-      if (S.view === 'top') rerender();
-    }
+    loadFinderMetrics();
+  }
+  async function loadFinderMetrics() {
+    const sp = S.finder.species;
+    if (!FN.cloud.hasMetrics() || (S.lakeMetrics && S.lakeMetrics.have[sp]) || S.loading.metrics === sp) return;
+    S.loading.metrics = sp; rerender();
+    try { await ensureMetrics(sp); S.errors.metrics = null; } catch (e) { S.errors.metrics = e.message; }
+    if (S.loading.metrics === sp) S.loading.metrics = false;
+    if (S.view === 'top') rerender();
   }
 
   /* ---------- cloud: sign-in & sync ---------- */
@@ -565,10 +642,11 @@
       const spKey = (FN.profileFor(f.species) || {}).name || f.speciesName || f.species;
       const prevPB = FN.ui.personalBests(S.catches.filter(c => c.id !== f.id)).get(spKey) || {};
       const i = S.catches.findIndex(c => c.id === f.id); if (i >= 0) S.catches[i] = f; else S.catches.unshift(f);
-      U.store.set(K.catches, S.catches);
+      const stored = U.store.set(K.catches, S.catches);
       if (cloudOn()) { try { const r = await FN.cloud.pushCatches([f]); f.synced = true; if (r && r[0]) f.serverId = r[0].id; U.store.set(K.catches, S.catches); } catch (e) { toast('Saved on this device; it syncs when you are back online'); } }
       const newLen = !!f.length && (!prevPB.longest || f.length > prevPB.longest.length), newWt = !!f.weight && (!prevPB.heaviest || f.weight > prevPB.heaviest.weight);
-      if (newLen || newWt) toast(`🏆 New personal best ${spKey.toLowerCase()}: ${[newLen ? f.length + '″' : null, newWt ? f.weight + ' lb' : null].filter(Boolean).join(' and ')}! It's on your profile.`, 5000);
+      if (!stored && !f.synced) toast('This phone is out of storage for the app, so this catch may not be kept. Sign in to back up your catches, or remove a few photos.', 8000);
+      else if (newLen || newWt) toast(`🏆 New personal best ${spKey.toLowerCase()}: ${[newLen ? f.length + '″' : null, newWt ? f.weight + ' lb' : null].filter(Boolean).join(' and ')}! It's on your profile.`, 5000);
       else toast(i >= 0 ? 'Catch updated' : 'Catch logged 🎣');
       S.catchForm = null; S.catchPhotoFile = null; S.catchBusy = false;
       S.view = S.prevView && S.prevView !== 'catch' ? S.prevView : 'home';
@@ -576,7 +654,7 @@
       if (S.view === 'pin') S.view = 'home';
       computeBite(); render();
       // Logged from a pin: land back on that pin so the new tally is right there
-      if (f.pinId && i < 0 && S.view !== 'catches' && pinById(f.pinId)) { if (isMobile()) setSheet('collapsed'); FN.map.openPin(f.pinId); }
+      if (f.pinId && i < 0 && S.view !== 'catches' && pinById(f.pinId)) { peekMap(); FN.map.openPin(f.pinId); }
     } catch (e) { S.catchBusy = false; toast('Could not save: ' + e.message); rerender(); }
   }
   // Weather, barometer, moon and bite score at the moment of the catch
@@ -661,7 +739,7 @@
   function showFeedPin(lat, lon, name) {
     FN.map.flyTo(lat, lon, 14);
     setTimeout(() => FN.map.popup(L.latLng(lat, lon), `<strong>${U.esc(name)}</strong><br><span class="muted">shared by a buddy</span>`), 900);
-    if (isMobile()) setSheet('collapsed');
+    peekMap();
   }
   async function postReport(form) {
     const text = form.querySelector('#report-body').value.trim(); if (!text) return;
@@ -684,7 +762,7 @@
     if (pin.lakeName && pin.name.startsWith('Pin ')) pin.name = `${pin.lakeName}${pin.depth != null ? ' · ' + pin.depth + ' ft' : ''}`;
     S.pins.unshift(pin); savePins();
     FN.map.closePopups();
-    if (isMobile()) setSheet('collapsed');
+    peekMap();
     FN.map.openPin(id, extra.source === 'gps' ? 14 : undefined);
     toast('Pin dropped — tap it to name it');
     if (S.view !== 'pin') rerender();
@@ -713,8 +791,8 @@
   function setPlaceMode(on) {
     S.placeMode = !!on;
     FN.map.setPlaceMode(on);
-    $('#place-hint').classList.toggle('hidden', !on);
-    if (on) { closePinMenu(); $('#legend').classList.add('hidden'); $('#layers-panel').classList.add('hidden'); if (isMobile()) setSheet('collapsed'); }
+    $('#place-hint').classList.toggle('hidden', !on); syncToolState();
+    if (on) { closePinMenu(); $('#legend').classList.add('hidden'); $('#layers-panel').classList.add('hidden'); peekMap(); }
   }
   function closePinMenu() { $('#pin-menu').classList.add('hidden'); }
   function editPin(id) {
@@ -798,6 +876,8 @@
   FN.map.onZoom(z => { hint.classList.toggle('hidden', z >= C.map.contourMinZoom); });
 
   /* ---------- events (delegated) ---------- */
+  // Things done on the map itself (layers, pin tools, popups): they never drag a closed panel back up
+  const MAP_ONLY = new Set(['sheet-close', 'sheet-open', 'layers-close', 'basemap', 'depth-reset', 'pin-gps', 'pin-place', 'pin-cancel', 'pin-menu-close', 'pin-here', 'pin-open', 'pin-copy', 'pin-delete', 'fly', 'zoom-lake', 'radar-toggle', 'feed-pin']);
   document.addEventListener('click', e => {
     const el = e.target.closest('[data-action]');
     if (!el) {
@@ -807,7 +887,7 @@
       return;
     }
     const a = el.dataset.action;
-    if (a !== 'sheet-close' && a !== 'sheet-open') showPanel();
+    if (!MAP_ONLY.has(a)) showPanel();
     switch (a) {
       case 'open-lake': openLake(el.dataset.id); break;
       case 'home': goHome(); break;
@@ -829,7 +909,7 @@
       case 'a2hs-install': { const ev = S.installPrompt; if (!ev) break; ev.prompt(); ev.userChoice.then(r => { if (r && r.outcome === 'accepted') { S.installPrompt = null; toast('Fish Nasty is on your home screen 📲'); rerender(); } }).catch(() => {}); break; }
       case 'tab': S.tab = el.dataset.tab; render(); if (window.matchMedia('(max-width: 899px)').matches) setSheet('full'); break;
       case 'fav': toggleFav(); break;
-      case 'zoom-lake': FN.map.showLake(S.lake, { fit: true }); if (window.matchMedia('(max-width: 899px)').matches) setSheet('collapsed'); break;
+      case 'zoom-lake': peekMap(); FN.map.showLake(S.lake, { fit: true }); break;
       case 'species': S.species = el.dataset.code; U.store.set(K.species, S.species); S.hourIdx = null; computeBite(); computeQuickBite(); rerender(); break;
       case 'quick-center': openQuick('center'); break;
       case 'bestbet-species': S.bestbet.species = el.dataset.code; U.store.set('fn.bestSpecies', S.bestbet.species); runBestBet(S.bestbet.source, true); break;
@@ -840,7 +920,7 @@
       case 'day': S.dayIdx = Number(el.dataset.i); S.hourIdx = null; rerender(); break;
       case 'hour': S.hourIdx = Number(el.dataset.i); rerender(); break;
       case 'locate-nearby': locateNearby(); break;
-      case 'fly': FN.map.flyTo(Number(el.dataset.lat), Number(el.dataset.lon), 15); if (window.matchMedia('(max-width: 899px)').matches) setSheet('collapsed'); break;
+      case 'fly': FN.map.flyTo(Number(el.dataset.lat), Number(el.dataset.lon), 15); peekMap(); break;
       case 'layers-close': $('#layers-panel').classList.add('hidden'); break;
       case 'basemap': FN.map.update({ basemap: el.dataset.v }); renderLayers(); break;
       case 'depth-reset': FN.map.update({ depthMin: 0, depthMax: 999 }); renderLayers(); break;
@@ -881,7 +961,7 @@
       case 'report-new': if (!S.user) { toast('Sign in to share lake reports'); break; } S.prevView = S.view; S.view = 'report'; render(); if (isMobile()) setSheet('full'); break;
       case 'report-cancel': S.view = S.lake ? 'lake' : 'home'; render(); break;
       case 'report-delete': FN.cloud.deleteReport(el.dataset.id).then(() => loadBuddies(true)).catch(e => toast(e.message)); break;
-      case 'finder-species': S.finder.species = el.dataset.code; S.finder.minLen = 0; S.finder.limit = 20; saveFinder(); rerender(); break;
+      case 'finder-species': S.finder.species = el.dataset.code; S.finder.minLen = 0; S.finder.limit = 20; saveFinder(); rerender(); loadFinderMetrics(); break;
       case 'finder-mode': S.finder.mode = el.dataset.mode; S.finder.limit = 20; saveFinder(); rerender(); break;
       case 'finder-scope': S.finder.scope = el.dataset.scope; S.finder.limit = 20; saveFinder(); rerender(); if (S.finder.scope === 'near' && !S.location) locateNearby(); break;
       case 'finder-more': S.finder.limit += 20; rerender(); break;
@@ -890,7 +970,7 @@
       case 'pin-cancel': setPlaceMode(false); break;
       case 'pin-menu-close': closePinMenu(); break;
       case 'pin-here': FN.map.closePopups(); addPin(Number(el.dataset.lat), Number(el.dataset.lon), { source: 'tap', depth: el.dataset.depth != null ? Number(el.dataset.depth) : null, lakeId: el.dataset.lakeId || null, lakeName: el.dataset.lakeName || null }); break;
-      case 'pin-open': e.stopPropagation(); if (isMobile()) setSheet('collapsed'); FN.map.openPin(el.dataset.id); break;
+      case 'pin-open': e.stopPropagation(); peekMap(); FN.map.openPin(el.dataset.id); break;
       case 'pin-edit': e.stopPropagation(); editPin(el.dataset.id); break;
       case 'pin-back': leavePinEditor(); break;
       case 'pin-save': savePinEdits(el.dataset.id); break;
@@ -942,7 +1022,7 @@
       if (cloudOn()) FN.cloud.deleteFavorites([S.lake.id]).catch(() => { S.tomb.favorites.push(S.lake.id); U.store.set(K.tomb, S.tomb); });
       else { S.tomb.favorites.push(S.lake.id); U.store.set(K.tomb, S.tomb); }
     } else {
-      const fav = { id: S.lake.id, name: S.lake.name, county: S.lake.county, town: S.lake.town, acres: S.lake.acres, maxDepth: S.lake.maxDepth };
+      const fav = { id: S.lake.id, name: S.lake.name, county: S.lake.county, town: S.lake.town, acres: S.lake.acres, maxDepth: S.lake.maxDepth, lat: S.lake.lat, lon: S.lake.lon };
       S.favorites.unshift(fav); toast('Saved to favorites ★');
       if (cloudOn()) FN.cloud.pushFavorites([fav]).catch(() => {});
     }
@@ -962,7 +1042,8 @@
   $('#fab-zoomin').addEventListener('click', () => FN.map.getMap().zoomIn());
   $('#fab-zoomout').addEventListener('click', () => FN.map.getMap().zoomOut());
   const syncToolState = () => { $('#fab-layers').classList.toggle('on', !$('#layers-panel').classList.contains('hidden')); $('#fab-legend').classList.toggle('on', !$('#legend').classList.contains('hidden')); $('#fab-pin').classList.toggle('on', !$('#pin-menu').classList.contains('hidden') || S.placeMode); $('#fab-forecast').classList.toggle('on', S.view === 'quick'); };
-  new MutationObserver(syncToolState).observe(document.getElementById('app'), { attributes: true, subtree: true, attributeFilter: ['class'] });
+  const toolWatch = new MutationObserver(syncToolState);
+  for (const id of ['layers-panel', 'legend', 'pin-menu']) toolWatch.observe(document.getElementById(id), { attributes: true, attributeFilter: ['class'] });
   $('#fab-layers').addEventListener('click', () => { renderLayers(); $('#layers-panel').classList.toggle('hidden'); $('#legend').classList.add('hidden'); closePinMenu(); });
   $('#fab-legend').addEventListener('click', () => { $('#legend').classList.toggle('hidden'); $('#layers-panel').classList.add('hidden'); closePinMenu(); });
   function renderLayers() { $('#layers-panel').innerHTML = FN.ui.layersPanel(FN.map.getSettings()); }
@@ -976,17 +1057,92 @@
     else if (location.hash === '#profile') openProfile();
     else if (['lake', 'top', 'profile'].includes(S.view)) goHome();
   }
+  // An address typed or pasted by hand. Our own navigation never fires this for long: it is ignored right after any history change.
   window.addEventListener('hashchange', () => {
+    if (Date.now() - nav.t < 700) return;
     const m = location.hash.match(/lake\/(\d{8})/);
     if (m && (!S.lake || S.lake.id !== m[1] || S.view !== 'lake')) openLake(m[1]);
     else if (location.hash === '#top' && S.view !== 'top') openTop();
     else if (location.hash === '#profile' && S.view !== 'profile') openProfile();
     else if (!m && !['#top', '#profile'].includes(location.hash) && ['lake', 'top', 'profile'].includes(S.view)) goHome();
-    if (S.view === 'pin' && !m) leavePinEditor();
+  });
+
+  /* ---------- history: the phone's Back button (and the browser's back / forward) moves between screens ----------
+     Every screen change adds one history entry carrying a small snapshot of that screen. An in-app back arrow that returns
+     to the previous screen steps back through history instead of stacking a new entry, so Back always retraces your path
+     and leaves the app only from the first screen. */
+  const nav = { stack: ['home'], i: 0, skip: 0, skipAt: 0, t: 0, adopt: false };
+  const screenKey = () => (S.view === 'lake' ? `lake:${S.lake ? S.lake.id : ''}` : S.view === 'pin' ? `pin:${S.editPin}` : S.view);
+  const snapKey = s => (s.view === 'lake' ? `lake:${s.id}` : s.view === 'pin' ? `pin:${s.pin}` : s.view);
+  const screenUrl = () => (S.view === 'lake' && S.lake ? `#lake/${S.lake.id}` : S.view === 'top' ? '#top' : S.view === 'profile' ? '#profile' : S.view === 'home' ? location.pathname + location.search : null);
+  const snapshot = () => ({
+    view: S.view, id: S.view === 'lake' && S.lake ? S.lake.id : null, pin: S.view === 'pin' ? S.editPin : null, prev: S.prevView || 'home',
+    filter: S.view === 'catches' ? S.catchFilter || null : null,
+    wx: S.view === 'weather' && S.wx ? { lat: S.wx.lat, lon: S.wx.lon, label: S.wx.label } : null
+  });
+  function syncHistory() {
+    if (S.view === 'lake' && (S.loading.lake || !S.lake)) return;        // still resolving which lake this is
+    const key = screenKey();
+    try {
+      if (nav.adopt) { nav.adopt = false; nav.stack[nav.i] = key; nav.t = Date.now(); history.replaceState({ fn: nav.i, snap: snapshot() }, ''); return; }
+      if (key === nav.stack[nav.i]) return;
+      nav.t = Date.now();
+      if (nav.i > 0 && key === nav.stack[nav.i - 1]) { nav.i--; nav.skip++; nav.skipAt = Date.now(); history.back(); return; }   // an in-app back arrow
+      nav.stack.length = nav.i + 1; nav.stack.push(key); nav.i++;
+      history.pushState({ fn: nav.i, snap: snapshot() }, '', screenUrl() || location.href);
+    } catch (e) { /* history can be unavailable in embedded browsers; the app still navigates without it */ }
+  }
+  // Put a remembered screen back on display. False when it cannot be shown any more (a form that was saved or cancelled).
+  function restoreScreen(s) {
+    closeSearch(); closePinMenu(); $('#layers-panel').classList.add('hidden'); $('#legend').classList.add('hidden'); FN.map.closePopups();
+    const full = () => { if (isMobile()) setSheet('full'); else showPanel(); };
+    switch (s.view) {
+      case 'lake':
+        if (!s.id) return false;
+        if (S.lake && S.lake.id === s.id && (S.detail || S.loading.detail)) { S.view = 'lake'; document.title = `${S.lake.name} · Fish Nasty`; render(); full(); }
+        else openLake(s.id, { fit: false });
+        return true;
+      case 'top': openTop(); return true;
+      case 'profile': openProfile(); return true;
+      case 'catches': S.catchFilter = s.filter || null; S.prevView = s.prev || 'home'; S.openCatch = null; S.view = 'catches'; render(); full(); return true;
+      case 'weather':
+        if (S.wx && S.wx.data) { S.prevView = s.prev || 'home'; S.view = 'weather'; document.title = 'Weather · Fish Nasty'; render(); full(); }
+        else if (s.wx && s.wx.lat != null) openWeather('point', s.wx); else openWeather('center');
+        return true;
+      case 'quick': if (S.quick) { S.view = 'quick'; render(); full(); } else openQuick('center'); return true;
+      case 'buddies': if (!S.user) return false; openBuddies(); return true;
+      case 'account': S.view = 'account'; setAuthMsg(null); render(); full(); return true;
+      case 'catch': if (!S.catchForm) return false; S.view = 'catch'; render(); full(); return true;
+      case 'pin': if (!pinById(s.pin)) return false; S.view = 'pin'; S.editPin = s.pin; S.editColor = null; render(); full(); return true;
+      case 'report': if (!S.lake || !S.user) return false; S.view = 'report'; render(); full(); return true;
+      default: goHome(); showPanel(); return true;
+    }
+  }
+  // Keep the address bar honest for the screens that have their own address (so a reload lands on the same screen)
+  function fixUrl() {
+    try {
+      if (S.view === 'home') { if (location.hash) history.replaceState(history.state, '', location.pathname + location.search); }
+      else if (S.view === 'top' || S.view === 'profile') { if (location.hash !== '#' + S.view) history.replaceState(history.state, '', '#' + S.view); }
+    } catch (e) { /* leave the address as it is */ }
+  }
+  window.addEventListener('popstate', e => {
+    nav.t = Date.now();
+    if (nav.skip > 0) { if (Date.now() - nav.skipAt < 2000) { nav.skip--; fixUrl(); syncTitle(true); return; } nav.skip = 0; }   // our own history.back(): the screen is already right
+    const st = e.state;
+    if (!st || st.fn == null) { nav.adopt = true; routeFromHash(); if (nav.adopt) syncHistory(); return; }   // an entry we did not create (typed address, older version): take it as it is
+    const dir = st.fn < nav.i ? -1 : 1;
+    const snap = st.snap || { view: 'home' };
+    nav.i = st.fn; if (nav.stack.length < nav.i + 1) nav.stack.length = nav.i + 1;
+    nav.stack[nav.i] = snapKey(snap);
+    if (!restoreScreen(snap)) { try { history.go(dir); } catch (err) { goHome(); } return; }   // skip a form that is gone, in the direction already travelling
+    fixUrl(); syncTitle(true);
   });
 
   FN.map.init('map');
   FN.map.renderPins(S.pins, FN.ui.pinPopup);
+  try { history.replaceState({ fn: 0, snap: { view: 'home' } }, ''); } catch (e) { /* no history access: fine */ }
+  hint.classList.toggle('hidden', FN.map.getMap().getZoom() >= C.map.contourMinZoom);   // the zoom tip only when zoomed out
+  if (isMobile()) searchEl.placeholder = 'Search lakes or DOW #';
   if (FN.cloud.init()) FN.cloud.onAuth(onAuth);
   else {
     window.addEventListener('supabase-ready', () => { if (FN.cloud.init()) { FN.cloud.onAuth(onAuth); rerender(); } });
@@ -995,11 +1151,12 @@
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && cloudOn() && (!S.lastSync || Date.now() - S.lastSync > 120000)) syncAll().catch(() => {}); });
   render();
   if (S.lastLake) {
-    // Show a bite forecast for the last lake while the user decides
-    FN.dnr.byId(S.lastLake.id).then(l => { if (l && l.lat != null && !S.homeBite) loadHomeBite(l.lat, l.lon, l.name); }).catch(() => {});
+    // Show a bite forecast for the last lake while the user decides (its coordinates are remembered, so no lookup is needed)
+    if (S.lastLake.lat != null) loadHomeBite(S.lastLake.lat, S.lastLake.lon, S.lastLake.name);
+    else FN.dnr.byId(S.lastLake.id).then(l => { if (l && l.lat != null && !S.homeBite) loadHomeBite(l.lat, l.lon, l.name); }).catch(() => {});
   }
   routeFromHash();
-  if (window.matchMedia('(max-width: 899px)').matches) setSheet(location.hash ? 'half' : 'half');
+  if (isMobile()) { if (S.view === 'home') setSheet('half'); else applySheet(); }   // a lake or profile link opens full height; only home starts at half
   if (S.view === 'home' && S.favorites.length) setTimeout(() => runBestBet('favorites').catch(() => {}), 800);
   const showWelcome = () => { if (S.welcomeSeen || S.user || location.hash.includes('lake/')) return; S.welcome = true; S.authMode = 'signup'; S.prevView = 'home'; S.view = 'account'; render(); if (isMobile()) setSheet('full'); };
   if (FN.cloud.available()) showWelcome(); else window.addEventListener('supabase-ready', showWelcome, { once: true });

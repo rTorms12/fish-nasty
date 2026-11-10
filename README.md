@@ -101,6 +101,8 @@ Project **Fish Nasty** in the "Ryan's Apps" organization (`kmfyzjasrtpgdjcybqtr`
 | `lakes`, `lake_species_metrics` | all 3,800+ surveyed lakes and their walleye / pike / crappie / largemouth bass size and catch-rate metrics (public read) |
 | `refresh_jobs`, `refresh_queue` | progress of the monthly DNR re-scan |
 
+The lake finder and the weekend ranking read `lake_metrics(species)`, a database function that returns one compact document per species (every lake's size and catch-rate numbers joined with its name and coordinates). It is a plain GET with the publishable key, so the service worker caches it for a day and it works offline and without the sign-in library. Favorites use two small `in.(…)` lookups instead.
+
 Photos live in the private `catch-photos` storage bucket (`{user id}/{catch id}.jpg`, resized to 1280 px on the phone before upload).
 
 The Edge Function `refresh-lakes` re-scans LakeFinder in batches of 60 lakes; a pg_cron job (`refresh-lakes-tick`, every 2 minutes) keeps it moving while a job is running and starts a new one when the last finished more than 30 days ago. `?action=status` on the function reports progress.
@@ -154,6 +156,15 @@ icons/                app icons
 - Depth tiles are rendered live by the state ArcGIS server (no CDN), so they are the slowest thing in the app. The app asks for one combined image per tile (contours, outline and depth labels together), at 1× resolution for the shaded fill and 1.5× for lines, and skips requests while a pinch-zoom is in progress. The service worker keeps the last ~600 depth tiles on the device for 30 days, so places you've looked at before draw instantly and work offline.
 - DNR survey, stocking and access data are served from the device cache first and refreshed in the background (7-day window); weather is always fetched fresh when online.
 - The panel re-renders at most once per animation frame, the sign-in library loads in the background, and the page preconnects to every data host at startup.
+- App shell: code and styles are requested with their version in the address (`?v=1.13.0`) and the service worker answers those from the device immediately (re-checking quietly in the background). Only the page itself goes to the network first, and it falls back to the cached copy after 3 seconds so a weak signal at the landing never hangs the app. Bump the version in `js/config.js`, `sw.js` and `index.html` together on every release.
+- Statewide lake data loads one species at a time (one request, about 80 KB compressed) and is never written to `localStorage`. The home page only looks up your favorites.
+- Weather for a list of lakes (weekend ranking) is fetched in one Open-Meteo request for all of them, plus one for the temperature history, instead of two per lake. Requests for the same spot made at the same moment share one download.
+- The bottom sheet moves by `transform` only while a finger is down; its layout-affecting offset is written once on release.
+- Typed form values (catch form, pin editor, sign-in) are carried across background re-renders, so a sync finishing or the phone waking up never clears a half-filled form.
+
+## Navigation and the Back button
+
+Every screen change adds one browser-history entry (with a small snapshot of that screen), so the phone's Back button, an edge swipe, and the browser's back/forward buttons retrace your path: weather → lake → home, catch log → profile → home. In-app back arrows step back through the same history rather than stacking new entries, and Back leaves the app only from the first screen. Lakes, the lake finder and the profile keep their own addresses (`#lake/<DOW>`, `#top`, `#profile`) so a reload or a shared link lands on the same screen. Map tools (layers, pin menu, popups) never reopen a panel that was closed with the X.
 
 ## Notes and limits
 

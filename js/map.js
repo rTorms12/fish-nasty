@@ -104,7 +104,10 @@ FN.map = (() => {
     if (!window.matchMedia('(max-width: 899px)').matches) return 0;
     const sheetEl = document.getElementById('sheet'), app = document.getElementById('app');
     if (!sheetEl || (app && app.classList.contains('panel-closed'))) return 0;
-    return Math.max(0, Math.min(window.innerHeight * 0.55, window.innerHeight - sheetEl.getBoundingClientRect().top));
+    // Where the sheet is headed, not where its slide animation happens to be right now
+    const off = parseFloat(sheetEl.style.getPropertyValue('--off'));
+    const visible = isNaN(off) ? window.innerHeight - sheetEl.getBoundingClientRect().top : sheetEl.getBoundingClientRect().height - off;
+    return Math.max(0, Math.min(window.innerHeight * 0.55, visible));
   }
   // Popup auto-pan padding so popups land clear of the search bar, the tool stack and the sheet
   function padOpts() {
@@ -326,7 +329,10 @@ FN.map = (() => {
     }
   }
 
-  function flyTo(lat, lon, zoom) { map.flyTo([lat, lon], zoom || Math.max(map.getZoom(), 14), { duration: 0.8 }); }
+  function flyTo(lat, lon, zoom) {
+    const z = zoom || Math.max(map.getZoom(), 14);
+    try { map.flyTo([lat, lon], z, { duration: 0.8 }); } catch (e) { map.setView([lat, lon], z, { animate: false }); }
+  }
 
   /* ---------- waypoints (pins) ---------- */
   function pinIcon(color) {
@@ -360,7 +366,11 @@ FN.map = (() => {
     if (!m) return;
     const ll = m.getLatLng(), z = Math.max(map.getZoom(), zoom || 13);
     const open = () => m.openPopup();
-    if (map.getCenter().distanceTo(ll) > 5 || map.getZoom() !== z) { map.once('moveend', open); map.flyTo(ll, z, { duration: 0.6 }); }
+    if (map.getCenter().distanceTo(ll) > 5 || map.getZoom() !== z) {
+      map.once('moveend', open);
+      try { map.flyTo(ll, z, { duration: 0.6 }); }
+      catch (e) { map.off('moveend', open); map.setView(ll, z, { animate: false }); open(); }   // a map that has no size yet (app opened in the background) cannot animate
+    }
     else open();
   }
   function setPlaceMode(on) { map.getContainer().classList.toggle('placing', !!on); }

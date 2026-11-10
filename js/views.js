@@ -36,7 +36,7 @@ Object.assign(FN.ui, (() => {
     const tabs = [['signin', 'Sign in'], ['signup', 'Create account'], ['magic', 'Email me a link']];
     const welcome = !!S.welcome;
     return (welcome
-      ? `<div class="hero"><div class="logo">${ICON.fish}</div><div><h1>Welcome to Fish Nasty</h1><p>Create a free account to back up your pins, log catches with photos, and share spots with buddies.</p></div></div>`
+      ? `<div class="hero"><div class="logo"><img src="icons/icon-192.png" alt="" width="48" height="48" decoding="async"></div><div><h1>Welcome to Fish Nasty</h1><p>Create a free account to back up your pins, log catches with photos, and share spots with buddies.</p></div></div>`
       : head('Sign in', 'Sync pins and favorites, log catches, share with buddies')) + `
       <div class="seg">${tabs.map(([k, n]) => `<button class="${mode === k ? 'on' : ''}" data-action="auth-mode" data-mode="${k}">${n}</button>`).join('')}</div>
       ${msg(S.authMsg)}
@@ -199,7 +199,7 @@ Object.assign(FN.ui, (() => {
     const F = S.finder, sp = F.species, mode = F.mode;
     const M = S.lakeMetrics;
     let rows, source;
-    if (M && M.rows && M.rows.some(r => r.species === sp)) { rows = M.rows.filter(r => r.species === sp && (r.acres || 0) >= 50); source = 'live'; }
+    if (M && M.have && M.have[sp]) { rows = M.rows.filter(r => r.species === sp && (r.acres || 0) >= 50); source = 'live'; }
     else if (S.rankings && S.rankings.species[sp]) { rows = (mode === 'big' ? S.rankings.species[sp].bigLakes : S.rankings.species[sp].manyLakes).map(r => ({ ...r })); source = 'static'; }
     else return { rows: [], source: 'none' };
     rows = rows.filter(r => mode === 'big' ? (r.n || 0) >= MIN_N[sp] && (!F.minLen || (r.max || 0) >= F.minLen) : (r.nets || 0) >= 2 && (r.cpue || 0) > 0);
@@ -214,9 +214,8 @@ Object.assign(FN.ui, (() => {
     const p = FN.profileFor(sp);
     const { rows, source } = finderResults(S);
     const M = S.lakeMetrics;
-    const sub = M ? `${U.num(M.lakes)} surveyed lakes · DNR data refreshed ${new Date(M.updated).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : (S.rankings ? `Top 20 only (offline copy built ${esc(S.rankings.built)})` : 'From DNR fisheries surveys');
+    const sub = S.loading.metrics ? 'Loading statewide survey data…' : M && M.lakes ? `${U.num(M.lakes)} surveyed lakes · DNR data refreshed ${new Date(M.updated).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : (S.rankings ? `Top 20 only (offline copy built ${esc(S.rankings.built)})` : 'From DNR fisheries surveys');
     const parts = [head('Lake finder', sub)];
-    if (S.loading.metrics) parts.push(spinner('Loading statewide survey data…'));
     parts.push(`<div class="chips scroll">${['WAE', 'NOP', 'BLC', 'LMB'].map(c => `<button class="chip sel pic ${sp === c ? 'on' : ''}" data-action="finder-species" data-code="${c}">${speciesIcon(c, 'sm')} ${esc(FN.profileFor(c).name)}</button>`).join('')}</div>`);
     parts.push(`<div class="seg"><button class="${mode === 'big' ? 'on' : ''}" data-action="finder-mode" data-mode="big">🏆 Biggest fish</button><button class="${mode === 'many' ? 'on' : ''}" data-action="finder-mode" data-mode="many">🎣 Most fish</button></div>`);
     parts.push(`<div class="seg">${[['state', 'Statewide'], ['near', 'Near me'], ['county', 'County']].map(([k, n]) => `<button class="${F.scope === k ? 'on' : ''}" data-action="finder-scope" data-scope="${k}" ${k !== 'state' && source === 'static' ? 'disabled title="needs the live data"' : ''}>${n}</button>`).join('')}</div>`);
@@ -377,7 +376,7 @@ Object.assign(FN.ui, (() => {
       if (mc) parts.push(`<div class="card"><div class="eyebrow">Catches by ${range === 'year' ? 'month' : 'year'}</div>${mc}</div>`);
       if (st.lakes.length) parts.push(`<div class="card"><div class="eyebrow">By lake</div>${st.lakes.slice(0, 8).map(l => `<button class="sp-row" data-action="catch-lake-filter" data-id="${esc(l.id || '')}" data-name="${esc(l.name)}"><div class="grow"><div class="t">${esc(l.name)}</div><div class="s">${[...l.species.entries()].sort((a, b) => b[1] - a[1]).map(([k, v]) => `${v} ${k.toLowerCase()}`).join(', ')}${l.biggest ? ` · biggest ${l.biggest.length}″` : ''}</div></div><div class="n">${l.n}</div><div class="chev">›</div></button>`).join('')}</div>`);
       if (lifetime.released) parts.push(`<p class="muted small">${lifetime.released} of ${lifetime.n} released all time${lifetime.inches ? ` · ${U.num(lifetime.inches)} inches of fish measured` : ''}</p>`);
-      parts.push(`<h2>Recent catches</h2><div class="list">${all.slice(0, 3).map(c => catchRow(c)).join('')}</div><div class="actions"><button class="btn small ghost" data-action="catches">Open the full catch log (${all.length})</button><button class="btn small ghost" data-action="catch-export">Download CSV</button></div>`);
+      parts.push(`<h2>Recent catches</h2><div class="list">${all.slice(0, 3).map(c => catchRow(c)).join('')}</div><div class="actions"><button class="btn small" data-action="catch-new">+ Log a catch</button><button class="btn small ghost" data-action="catches">Full catch log (${all.length})</button><button class="btn small ghost" data-action="catch-export">Download CSV</button></div>`);
     }
 
     // ---- lakes, pins, buddies ----
@@ -392,7 +391,7 @@ Object.assign(FN.ui, (() => {
     if (signed && FN.cloud.available()) {
       const fr = (S.buddies && S.buddies.friendships) || [];
       const friends = fr.filter(f => f.status === 'accepted').length, pending = fr.filter(f => f.status === 'pending' && f.addressee_id === S.user.id).length;
-      parts.push(`<button class="card link" data-action="buddies"><div class="row"><div class="trophy">👥</div><div class="grow"><div class="big">Buddies${S.buddies ? ` <span class="muted">· ${friends}</span>` : ''}${pending ? ` <span class="badge">${pending} request${pending === 1 ? '' : 's'}</span>` : ''}</div><div class="muted small">Shared pins, catches and lake reports from your crew</div></div><div class="chev">›</div></div></button>`);
+      parts.push(`<button class="card link" data-action="buddies"><div class="row"><div class="trophy">👥</div><div class="grow"><div class="big">Buddies${S.buddies ? ` <span class="muted">· ${friends}</span>` : ''}${pending ? ` <span class="pill">${pending} request${pending === 1 ? '' : 's'}</span>` : ''}</div><div class="muted small">Shared pins, catches and lake reports from your crew</div></div><div class="chev">›</div></div></button>`);
     }
     parts.push(`<h2>Backup & settings</h2><div class="card"><p class="small">${signed ? `${S.syncing ? 'Syncing…' : S.lastSync ? `Last synced ${U.fmtTime(S.lastSync)}.` : 'Not synced yet.'} Pins, favorites, catches and photos are backed up to your account.` : 'Signed out: pins, favorites and catches live only in this browser. Sign in to back them up.'}</p><div class="actions">${signed ? `<button class="btn ghost small" data-action="sync-now">Sync now</button><button class="btn ghost small" data-action="account">Account settings</button>` : `<button class="btn small" data-action="account">Sign in</button>`}${all.length ? `<button class="btn ghost small" data-action="catch-export">Download catches (CSV)</button>` : ''}${signed ? `<button class="btn ghost small danger" data-action="signout">Sign out</button>` : ''}</div></div>`);
     parts.push(`<div class="foot">Fish Nasty v${esc(C.version)}</div>`);

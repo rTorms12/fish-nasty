@@ -137,26 +137,32 @@ FN.cloud = (() => {
   const myReports = () => fail_(sb.from('reports').select('*').eq('user_id', uid()).is('deleted_at', null).order('created_at', { ascending: false }));
   const deleteReport = id => fail_(sb.from('reports').update({ deleted_at: new Date().toISOString() }).eq('id', id));
 
-  /* ---------- statewide lake metrics (public; cached for a day) ---------- */
-  const METRICS_KEY = 'fn.lakeMetrics';
-  async function lakeMetrics(force) {
-    const cached = U.store.get(METRICS_KEY, null);
-    if (cached && !force && Date.now() - cached.t < 24 * 3600 * 1000) return cached.data;
-    if (!sb) return cached ? cached.data : null;
-    const lakes = [], metrics = [];
-    for (let from = 0; ; from += 1000) {
-      const page = await fail_(sb.from('lakes').select('id,name,county,town,lat,lon,acres,max_depth,newest_survey').range(from, from + 999));
-      lakes.push(...page); if (page.length < 1000) break;
+  /* ---------- statewide lake metrics (public) ----------
+     One compact document per species from the lake_metrics() database function: a single request, cached by the service
+     worker for a day and kept for offline. It needs only the public key, so it works even if the sign-in library is blocked. */
+  const hasMetrics = () => !!(C.supabase && C.supabase.url && C.supabase.key);
+  const rest = path => fetch(`${C.supabase.url}/rest/v1/${path}`, { headers: { apikey: C.supabase.key } }).then(r => { if (!r.ok) throw new Error('Lake data request failed'); return r.json(); });
+  const rowFromArr = (a, species) => ({ id: a[0], name: a[1], county: a[2], town: a[3], lat: a[4], lon: a[5], acres: a[6], maxDepth: a[7], species, n: a[8], max: a[9], nBig: a[10], pctBig: a[11], nTrophy: a[12], years: a[13] || [], cpue: a[14], gear: a[15], catch: a[16], nets: a[17], normal: a[18], year: a[19] });
+  const metricsMem = new Map();   // species -> promise of { species, lakes, updated, rows }
+  function lakeMetrics(species) {
+    const sp = species || 'WAE';
+    if (!metricsMem.has(sp)) {
+      metricsMem.set(sp, rest(`rpc/lake_metrics?p_species=${encodeURIComponent(sp)}`)
+        .then(j => ({ species: sp, lakes: j.lakes, updated: j.updated, rows: (j.rows || []).map(a => rowFromArr(a, sp)) }))
+        .catch(e => { metricsMem.delete(sp); throw e; }));
     }
-    for (let from = 0; ; from += 1000) {
-      const page = await fail_(sb.from('lake_species_metrics').select('*').range(from, from + 999));
-      metrics.push(...page); if (page.length < 1000) break;
-    }
-    const byLake = new Map(lakes.map(l => [l.id, l]));
-    const data = { lakes: lakes.length, rows: metrics.map(m => { const l = byLake.get(m.lake_id) || {}; return { id: m.lake_id, name: l.name, county: l.county, town: l.town, lat: l.lat, lon: l.lon, acres: l.acres, maxDepth: l.max_depth, species: m.species, n: m.n_measured, max: m.max_len, nBig: m.n_big, pctBig: m.pct_big, nTrophy: m.n_trophy, years: m.years || [], cpue: m.cpue, gear: m.gear, catch: m.total_catch, nets: m.nets, normal: m.normal_range, year: m.cpue_year }; }), updated: new Date().toISOString() };
-    try { U.store.set(METRICS_KEY, { t: Date.now(), data }); } catch (e) { /* storage full: fine, it will refetch */ }
-    return data;
+    return metricsMem.get(sp);
   }
+  // Metrics for a handful of lakes (your favorites): two tiny lookups instead of the statewide document
+  async function lakeMetricsFor(ids) {
+    const list = [...new Set(ids)].filter(id => /^\d{8}$/.test(String(id))).slice(0, 40);
+    if (!list.length) return [];
+    const inList = `in.(${list.join(',')})`;
+    const [lakes, metrics] = await Promise.all([rest(`lakes?select=id,name,county,town,lat,lon,acres,max_depth&id=${inList}`), rest(`lake_species_metrics?select=*&lake_id=${inList}`)]);
+    const byLake = new Map(lakes.map(l => [l.id, l]));
+    return metrics.map(m => { const l = byLake.get(m.lake_id) || {}; return { id: m.lake_id, name: l.name, county: l.county, town: l.town, lat: l.lat, lon: l.lon, acres: l.acres, maxDepth: l.max_depth, species: m.species, n: m.n_measured, max: m.max_len, nBig: m.n_big, pctBig: m.pct_big, nTrophy: m.n_trophy, years: m.years || [], cpue: m.cpue, gear: m.gear, catch: m.total_catch, nets: m.nets, normal: m.normal_range, year: m.cpue_year }; });
+  }
+  try { localStorage.removeItem('fn.lakeMetrics'); } catch (e) { /* the old 2 MB copy of the statewide tables: no longer kept in the phone's small storage */ }
   const refreshStatus = () => fail_(sb.from('refresh_jobs').select('*').order('id', { ascending: false }).limit(1)).then(r => r[0] || null);
 
   return {
@@ -165,6 +171,6 @@ FN.cloud = (() => {
     pullPins, pushPins, deletePins, pullFavorites, pushFavorites, deleteFavorites,
     pullCatches, pushCatches, deleteCatches, uploadPhoto, photoUrl,
     listFriendships, invite, respond, removeFriendship, feed, postReport, myReports, deleteReport,
-    lakeMetrics, refreshStatus
+    lakeMetrics, lakeMetricsFor, hasMetrics, refreshStatus
   };
 })();
