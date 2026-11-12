@@ -28,7 +28,7 @@
   const body = $('#sheet-body');
   let lastScreen = '';
   // What is on screen, for telling "same screen refreshed" from "moved to another screen"
-  const screenId = () => `${S.view}|${S.view === 'lake' && S.lake ? S.lake.id + '|' + S.tab : ''}|${S.view === 'pin' ? S.editPin : ''}|${S.view === 'catch' && S.catchForm ? S.catchForm.id || 'new' : ''}`;
+  const screenId = () => `${S.view}|${S.view === 'lake' && S.lake ? S.lake.id + '|' + S.tab + (S.tab === 'survey' && S.surveySpecies ? ':' + S.surveySpecies : '') : ''}|${S.view === 'pin' ? S.editPin : ''}|${S.view === 'catch' && S.catchForm ? S.catchForm.id || 'new' : ''}`;
   // Data arriving in the background (a sync finishing, a sign-in event when the phone wakes) re-draws the panel.
   // That must never wipe what someone is in the middle of typing, so typed values ride across the re-draw.
   function keepInputs() {
@@ -235,10 +235,11 @@
   function closeSearch() { resultsEl.classList.add('hidden'); searchEl.blur(); }
 
   /* ---------- lake loading ---------- */
-  async function openLake(id, { fit = true } = {}) {
+  async function openLake(id, { fit = true, tab = null, sp = null } = {}) {
     closeSearch();
     const my = ++reqId;
-    S.view = 'lake'; S.tab = S.tab === 'overview' || !S.lake || S.lake.id !== id ? 'overview' : S.tab;
+    S.view = 'lake'; S.tab = tab || (S.tab === 'overview' || !S.lake || S.lake.id !== id ? 'overview' : S.tab);
+    S.surveySpecies = S.tab === 'survey' ? sp : null; S.surveyPick = null;
     S.loading = { lake: true, detail: true, stocking: true, access: true, weather: true }; S.errors = {};
     S.detail = S.stocking = S.access = S.weather = S.bite = null; S.bathy = null; S.history = null; S.dayIdx = 0; S.hourIdx = null; S.surveyIdx = 0;
     let lake = (S.lake && S.lake.id === id) ? S.lake : null;
@@ -907,7 +908,10 @@
       case 'catch-export': exportCatches(); break;
       case 'a2hs-dismiss': S.a2hsDismissed = true; U.store.set('fn.a2hs', true); rerender(); break;
       case 'a2hs-install': { const ev = S.installPrompt; if (!ev) break; ev.prompt(); ev.userChoice.then(r => { if (r && r.outcome === 'accepted') { S.installPrompt = null; toast('Fish Nasty is on your home screen 📲'); rerender(); } }).catch(() => {}); break; }
-      case 'tab': S.tab = el.dataset.tab; render(); if (window.matchMedia('(max-width: 899px)').matches) setSheet('full'); break;
+      case 'tab': S.tab = el.dataset.tab; S.surveySpecies = null; S.surveyPick = null; render(); if (window.matchMedia('(max-width: 899px)').matches) setSheet('full'); break;
+      case 'survey-species': S.surveySpecies = el.dataset.code; S.surveyPick = null; render(); break;
+      case 'survey-back': S.surveySpecies = null; S.surveyPick = null; render(); break;
+      case 'survey-year': S.surveyPick = el.dataset.date; rerender(); break;
       case 'fav': toggleFav(); break;
       case 'zoom-lake': peekMap(); FN.map.showLake(S.lake, { fit: true }); break;
       case 'species': S.species = el.dataset.code; U.store.set(K.species, S.species); S.hourIdx = null; computeBite(); computeQuickBite(); rerender(); break;
@@ -1072,11 +1076,11 @@
      to the previous screen steps back through history instead of stacking a new entry, so Back always retraces your path
      and leaves the app only from the first screen. */
   const nav = { stack: ['home'], i: 0, skip: 0, skipAt: 0, t: 0, adopt: false };
-  const screenKey = () => (S.view === 'lake' ? `lake:${S.lake ? S.lake.id : ''}` : S.view === 'pin' ? `pin:${S.editPin}` : S.view);
-  const snapKey = s => (s.view === 'lake' ? `lake:${s.id}` : s.view === 'pin' ? `pin:${s.pin}` : s.view);
+  const screenKey = () => (S.view === 'lake' ? `lake:${S.lake ? S.lake.id : ''}${S.tab === 'survey' && S.surveySpecies ? ':' + S.surveySpecies : ''}` : S.view === 'pin' ? `pin:${S.editPin}` : S.view);
+  const snapKey = s => (s.view === 'lake' ? `lake:${s.id}${s.sp ? ':' + s.sp : ''}` : s.view === 'pin' ? `pin:${s.pin}` : s.view);
   const screenUrl = () => (S.view === 'lake' && S.lake ? `#lake/${S.lake.id}` : S.view === 'top' ? '#top' : S.view === 'profile' ? '#profile' : S.view === 'home' ? location.pathname + location.search : null);
   const snapshot = () => ({
-    view: S.view, id: S.view === 'lake' && S.lake ? S.lake.id : null, pin: S.view === 'pin' ? S.editPin : null, prev: S.prevView || 'home',
+    view: S.view, id: S.view === 'lake' && S.lake ? S.lake.id : null, sp: S.view === 'lake' && S.tab === 'survey' ? S.surveySpecies || null : null, pin: S.view === 'pin' ? S.editPin : null, prev: S.prevView || 'home',
     filter: S.view === 'catches' ? S.catchFilter || null : null,
     wx: S.view === 'weather' && S.wx ? { lat: S.wx.lat, lon: S.wx.lon, label: S.wx.label } : null
   });
@@ -1099,8 +1103,8 @@
     switch (s.view) {
       case 'lake':
         if (!s.id) return false;
-        if (S.lake && S.lake.id === s.id && (S.detail || S.loading.detail)) { S.view = 'lake'; document.title = `${S.lake.name} · Fish Nasty`; render(); full(); }
-        else openLake(s.id, { fit: false });
+        if (S.lake && S.lake.id === s.id && (S.detail || S.loading.detail)) { S.view = 'lake'; if (s.sp) S.tab = 'survey'; S.surveySpecies = s.sp || null; S.surveyPick = null; render(); full(); }
+        else openLake(s.id, { fit: false, tab: s.sp ? 'survey' : null, sp: s.sp || null });
         return true;
       case 'top': openTop(); return true;
       case 'profile': openProfile(); return true;

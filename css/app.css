@@ -204,8 +204,7 @@ select { font: inherit; background: var(--panel-2); color: var(--text); border: 
 /* charts */
 .chart { margin: 8px 0; }
 .chart svg { width: 100%; height: auto; display: block; }
-.len-chart .bar rect { fill: #5aa9f0; }
-.len-chart text, .bite-chart text { fill: var(--muted); font-size: 14px; }
+.bite-chart text { fill: var(--muted); font-size: 14px; }
 .axis { stroke: rgba(255,255,255,.2); }
 .grid { stroke: rgba(255,255,255,.08); }
 .bite-chart .night { fill: rgba(0,0,0,.28); }
@@ -371,7 +370,6 @@ textarea { resize: vertical; }
 .sp-block .tbl { margin: 4px 0 8px; }
 .sp-block .stat { background: var(--panel-3); }
 .stats.three { grid-template-columns: repeat(3, 1fr); }
-.len-chart .bar.big rect { fill: var(--accent-2); }
 .top-link .trophy { font-size: 30px; }
 .toprow { display: flex; width: 100%; gap: 12px; align-items: center; text-align: left; border: 0; background: var(--panel-2); border: 1px solid var(--line); padding: 10px 12px; border-radius: 14px; color: var(--text); margin: 4px 0; }
 .toprow .rank { flex: none; width: 30px; height: 30px; border-radius: 50%; background: var(--panel-3); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; }
@@ -492,18 +490,37 @@ input[type="file"]::file-selector-button { font: inherit; background: var(--pane
 @media (min-width: 900px) { .fabs { top: 14px; right: 16px; } .panel, .legend { top: 14px; right: 86px; } .zoomctl { display: flex; } #zoom-hint { left: calc(var(--panel-w) + 16px); top: 14px; } }
 
 /* ---------- survey trends & best bet ---------- */
-.trend-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.trend-chart { width: 100%; height: auto; display: block; }
-.trend-chart .val { fill: var(--text); font-size: 12px; font-weight: 700; }
-.trend-chart .axis-l { fill: var(--muted); font-size: 12px; }
-.sp-block.trends .sp-head h2 { font-size: 15px; }
+/* survey: fish list, then lengths by year */
+.sv-intro { margin: -2px 0 10px; }
+.sv-list { display: flex; flex-direction: column; gap: 8px; }
+.sv-card { display: flex; width: 100%; gap: 14px; align-items: center; text-align: left; border: 1px solid var(--line); background: var(--panel-2); padding: 12px 14px; border-radius: 16px; color: var(--text); transition: transform .12s ease, background-color .15s ease; }
+.sv-card .sp-pic.lg { width: 92px; height: 46px; flex: none; } .sv-card .sp-pic.lg img { height: auto; width: auto; max-width: 100%; max-height: 100%; } .sv-card .sp-emoji { font-size: 30px; }
+.sv-card .t { font-weight: 800; font-size: 17px; } .sv-card .s { color: var(--muted); font-size: 13px; } .sv-card .s b { color: var(--text); }
+.sv-card.none { opacity: .6; }
+button.sv-card:active { transform: scale(.985); background: var(--panel-3); }
+.sv-head { margin: 2px 0 10px; } .sv-head .btn svg { width: 16px; height: 16px; }
+.sv-title { margin-bottom: 10px; } .sv-title h2 { font-size: 20px; }
+.sv-years { margin-bottom: 4px; } .sv-years .chip { font-size: 15px; padding: 8px 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.sv-when { display: flex; align-items: center; gap: 10px; text-align: center; margin: 2px 0 10px; }
+.sv-when .icon-btn.mini { width: 38px; height: 38px; background: var(--panel-3); box-shadow: none; } .sv-when .icon-btn.mini svg { width: 18px; height: 18px; }
+.sv-when .icon-btn.fwd svg { transform: rotate(180deg); } .sv-when .icon-btn:disabled { opacity: .3; }
+.len-head { display: flex; justify-content: space-between; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; padding: 8px 2px 4px; border-bottom: 1px solid var(--line); margin-bottom: 6px; }
+.len-rows { display: flex; flex-direction: column; gap: 3px; }
+.len-row { display: grid; grid-template-columns: 42px 1fr 38px; align-items: center; gap: 10px; font-size: 15px; font-variant-numeric: tabular-nums; }
+.len-row .in { font-weight: 700; text-align: right; }
+.len-row .track { height: 18px; border-radius: 5px; background: rgba(255,255,255,.05); overflow: hidden; }
+.len-row .bar { height: 100%; border-radius: 5px; background: #5aa9f0; }
+.len-row.big .bar { background: var(--accent-2); }
+.len-row .n { font-weight: 800; text-align: right; }
+.len-row.zero { opacity: .4; } .len-row.zero .n { font-weight: 500; }
+.len-key { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); margin: 10px 0 6px; }
+.len-key i { width: 14px; height: 10px; border-radius: 3px; background: var(--accent-2); display: inline-block; }
 .bestbet .trophy { font-size: 28px; }
 .bestbet .chips { margin: 8px 0; }
 .toprow.bb .s { margin-top: 4px; }
 .dayscore { display: inline-flex; align-items: center; gap: 4px; margin-right: 10px; font-size: 13px; }
 .dayscore em { font-style: normal; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
 .dayscore b { font-size: 15px; } .dayscore b.r1 { color: #b7c8d6; } .dayscore b.r2 { color: #63d2b3; } .dayscore b.r3 { color: var(--r3); } .dayscore b.r4 { color: var(--r4); }
-@media (max-width: 380px) { .trend-grid { grid-template-columns: 1fr; } }
 
 /* ---------- lake name labels, onX-style: badge + name ---------- */
 .lake-label .ll { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); width: 132px; display: flex; flex-direction: column; align-items: center; pointer-events: none; }
@@ -524,7 +541,7 @@ input[type="file"]::file-selector-button { font: inherit; background: var(--pane
   .sr:hover, .lrow:hover { background: var(--panel-2); }
   .card.link:hover, .toprow:hover, .sp-row:hover, .pb-card:not(.empty):hover, .pin-menu .menu-item:hover, .crow:hover { background: var(--panel-3); }
   .sheet-close:hover { background: rgba(255,255,255,.16); color: var(--text); }
-  .len-chart .bar:hover rect { fill: #9fd0ff; }
+  button.sv-card:hover { background: var(--panel-3); }
   .bite-chart .bar:hover .b { stroke: #fff; stroke-width: 1.5; }
   .lake-label .ll span:hover { color: #9fe8ff; }
   .btn:hover { filter: brightness(1.08); }

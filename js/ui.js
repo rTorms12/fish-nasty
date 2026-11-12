@@ -229,52 +229,6 @@ FN.ui = (() => {
     { key: 'BLC', name: 'Crappie', codes: ['BLC', 'WHC', 'CRP', 'HCR'], big: 11, trophy: 13, gear: ['Standard trap nets', 'Standard trap net sets', 'Standard gill nets'] },
     { key: 'LMB', name: 'Largemouth bass', codes: ['LMB'], big: 15, trophy: 18, gear: ['Standard electrofishing', 'Standard trap nets', 'Standard trap net sets', 'Standard gill nets'], trendGear: ['Standard electrofishing'], unit: 'Per hour' }
   ];
-  // One row per survey year: catch per net in the standard gear, and the share of big fish measured
-  function trendRows(surveys, t) {
-    const byYear = new Map();
-    for (const sv of surveys) {
-      const yr = parseInt(String(sv.date).slice(0, 4)); if (!yr) continue;
-      let cpue = null, gear = null;
-      for (const g of (t.trendGear || t.gear)) { const c = sv.catches.find(x => t.codes.includes(x.species) && x.gear === g); if (c) { cpue = c.cpue; gear = g; break; } }
-      const len = mergeLengths(sv.lengths, t.codes);
-      let n = 0, pctBig = null, max = null;
-      if (len) { n = len.fishCount.reduce((a, [, c]) => a + c, 0); const nb = len.fishCount.reduce((a, [inch, c]) => a + (inch >= t.big ? c : 0), 0); pctBig = n ? Math.round(100 * nb / n) : null; max = len.maximum_length; }
-      if (cpue == null && !len) continue;
-      const prev = byYear.get(yr);
-      if (!prev || (prev.cpue == null && cpue != null) || (prev.n < n)) byYear.set(yr, { yr, cpue, gear, n, pctBig, max });
-    }
-    return [...byYear.values()].sort((a, b) => a.yr - b.yr);
-  }
-  function miniBars(rows, key, fmt, color, label) {
-    const data = rows.filter(r => r[key] != null);
-    if (data.length < 2) return '';
-    const W = 300, H = 110, padL = 6, padB = 22, padT = 18;
-    const bw = (W - padL * 2) / data.length;
-    const maxV = Math.max(...data.map(r => r[key]), 0.01);
-    const bars = data.map((r, i) => {
-      const h = (H - padB - padT) * r[key] / maxV, x = padL + i * bw, y = H - padB - h;
-      const every = data.length > 16 ? 4 : data.length > 8 ? 2 : 1;           // keep year labels readable on long series
-      const showVal = data.length <= 8 || i === data.length - 1 || r[key] === maxV;
-      const showYr = i % every === 0 || i === data.length - 1;
-      return `<g><rect x="${(x + 1.5).toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(2, bw - 3).toFixed(1)}" height="${Math.max(1, h).toFixed(1)}" rx="2" fill="${color}"/>${showVal ? `<text x="${(x + bw / 2).toFixed(1)}" y="${(y - 4).toFixed(1)}" text-anchor="middle" class="val">${fmt(r[key])}</text>` : ''}${showYr ? `<text x="${(x + bw / 2).toFixed(1)}" y="${H - 6}" text-anchor="middle" class="axis-l">${String(r.yr).slice(data.length > 7 ? 2 : 0)}</text>` : ''}<title>${r.yr}: ${fmt(r[key])} ${label}${r.gear ? ' (' + esc(gearShort(r.gear)) + ')' : ''}</title></g>`;
-    }).join('');
-    return `<div class="trend"><div class="eyebrow">${label}</div><svg viewBox="0 0 ${W} ${H}" class="trend-chart" role="img" aria-label="${label} by survey year">${bars}</svg></div>`;
-  }
-  function surveyTrends(D) {
-    const blocks = [];
-    for (const t of TARGETS) {
-      const rows = trendRows(D.surveys, t);
-      if (rows.length < 2) continue;
-      const c1 = miniBars(rows, 'cpue', v => U.num(v, 1), '#5aa9f0', t.unit || 'Per net');
-      const c2 = miniBars(rows, 'pctBig', v => v + '%', '#ffb454', `${t.big}″ or longer`);
-      if (!c1 && !c2) continue;
-      const first = rows[0], last = rows[rows.length - 1];
-      const verdict = (first.cpue != null && last.cpue != null) ? (last.cpue > first.cpue * 1.25 ? 'numbers up' : last.cpue < first.cpue * 0.75 ? 'numbers down' : 'numbers steady') : '';
-      const sizeV = (first.pctBig != null && last.pctBig != null) ? (last.pctBig > first.pctBig + 5 ? 'more big fish' : last.pctBig < first.pctBig - 5 ? 'fewer big fish' : 'size steady') : '';
-      blocks.push(`<div class="sp-block trends"><div class="sp-head">${speciesIcon(t.key, 'md')}<h2>${esc(t.name)} trend <span class="muted small">${rows[0].yr}–${last.yr}${verdict ? ' · ' + verdict : ''}${sizeV ? ' · ' + sizeV : ''}</span></h2></div><div class="trend-grid">${c1}${c2}</div></div>`);
-    }
-    return blocks.length ? `<h2>Across surveys</h2>${blocks.join('')}<p class="muted small">Per net is catch per unit effort in the standard gear (gill nets for walleye and pike, trap nets for crappie); bass are counted per hour of spring electrofishing. Bars are survey years.</p>` : '';
-  }
   const gearShort = g => String(g || '').replace('Standard ', '').replace(' sets', '').replace('gill nets', 'gill net').replace('trap nets', 'trap net').replace('electrofishing', 'electrofishing (per hour)');
   function mergeLengths(lengths, codes) {
     const counts = new Map();
@@ -287,52 +241,76 @@ FN.ui = (() => {
     const inches = [...counts.keys()];
     return { minimum_length: Math.min(...inches), maximum_length: Math.max(...inches), fishCount: [...counts.entries()] };
   }
-  const surveyHasTarget = sv => TARGETS.some(t => mergeLengths(sv.lengths, t.codes) || sv.catches.some(c => t.codes.includes(c.species)));
-
+  /* ---------------- SURVEY: pick a fish, pick a year, see how many were caught at each length ---------------- */
+  const svDate = d => { const [y, m, day] = String(d).split('-').map(Number); return new Date(y, (m || 1) - 1, day || 1); };
+  // Every survey that measured this fish, newest first: { date, year, type, len, n, min, max }
+  function speciesSurveys(D, t) {
+    const out = [];
+    for (const sv of D.surveys) {
+      const len = mergeLengths(sv.lengths, t.codes);
+      if (!len) continue;
+      const n = len.fishCount.reduce((a, [, c]) => a + c, 0);
+      if (!n) continue;
+      out.push({ date: sv.date, year: String(sv.date).slice(0, 4), type: sv.subType || sv.type || 'Survey', len, n, min: len.minimum_length, max: len.maximum_length });
+    }
+    return out.sort((x, y) => (x.date < y.date ? 1 : -1));
+  }
+  // One row per inch: the length, a bar, and how many fish
+  function lengthRows(len, bigFrom) {
+    const counts = new Map(len.fishCount.map(([inch, n]) => [Number(inch), Number(n)]));
+    const min = Number(len.minimum_length), max = Number(len.maximum_length);
+    const top = Math.max(1, ...counts.values());
+    const rows = [];
+    for (let i = max; i >= min; i--) {
+      const n = counts.get(i) || 0;
+      rows.push(`<div class="len-row ${n ? '' : 'zero'} ${bigFrom != null && i >= bigFrom ? 'big' : ''}"><div class="in">${i}″</div><div class="track"><div class="bar" style="width:${n ? Math.max(3, Math.round(100 * n / top)) : 0}%"></div></div><div class="n">${n || '–'}</div></div>`);
+    }
+    return `<div class="len-head"><span>Length</span><span>How many</span></div><div class="len-rows">${rows.join('')}</div>`;
+  }
   function survey(S) {
     const D = S.detail;
     if (S.loading.detail) return spinner('Loading DNR fisheries surveys…');
     if (S.errors.detail) return errorBox(S.errors.detail);
     if (!D || !D.surveys.length) return `<p class="muted">The DNR has not published a fisheries survey for this lake.</p>`;
-    const list = D.surveys.filter(surveyHasTarget);
-    if (!list.length) return `<p class="muted">The DNR surveys for this lake did not turn up any walleye, northern pike, crappie or largemouth bass.</p>`;
-    const idx = Math.min(S.surveyIdx || 0, list.length - 1);
-    const sv = list[idx];
-    const parts = [];
-    parts.push(surveyTrends(D));
-    parts.push(`<h2>Survey detail</h2><div class="field"><label>Survey</label><select data-change="survey">${list.map((s, i) => `<option value="${i}" ${i === idx ? 'selected' : ''}>${esc(s.date)} — ${esc(s.subType || s.type)}</option>`).join('')}</select></div>`);
+    const all = TARGETS.map(t => ({ t, list: speciesSurveys(D, t) }));
+    const picked = S.surveySpecies ? all.find(x => x.t.key === S.surveySpecies && x.list.length) : null;
 
-    for (const t of TARGETS) {
-      const catches = sv.catches.filter(c => t.codes.includes(c.species)).sort((a, b) => b.cpue - a.cpue);
-      const len = mergeLengths(sv.lengths, t.codes);
-      if (!catches.length && !len) continue;
-      const p = FN.profileFor(t.key);
-      const block = [];
-      block.push(`<div class="sp-head">${speciesIcon(t.key, 'lg')}<h2>${esc(t.name)}</h2></div>`);
-      if (catches.length) {
-        block.push(`<table class="tbl"><thead><tr><th>Gear</th><th class="n">Per net / hr</th><th class="n">Normal</th><th class="n">Caught</th><th class="n">Avg lb</th></tr></thead><tbody>${catches.map(c => `<tr><td>${esc(gearShort(c.gear))} <span class="muted">×${U.num(c.gearCount, 1)}</span></td><td class="n"><strong>${U.num(c.cpue, 2)}</strong> ${rangeFlag(c.cpue, c.normalCount)}</td><td class="n muted">${esc(c.normalCount || '—')}</td><td class="n">${U.num(c.totalCatch)}</td><td class="n">${c.avgWeight ? U.num(c.avgWeight, 2) : '—'}</td></tr>`).join('')}</tbody></table>`);
-      }
-      if (len) {
-        const n = len.fishCount.reduce((a, [, c]) => a + c, 0);
-        const nBig = len.fishCount.reduce((a, [inch, c]) => a + (inch >= t.big ? c : 0), 0);
-        const nTrophy = len.fishCount.reduce((a, [inch, c]) => a + (inch >= t.trophy ? c : 0), 0);
-        block.push(`<div class="stats three"><div class="stat"><div class="v">${U.num(n)}</div><div class="l">measured</div></div><div class="stat"><div class="v">${len.maximum_length}<small>in</small></div><div class="l">longest</div></div><div class="stat"><div class="v">${n ? Math.round(100 * nBig / n) : 0}<small>%</small></div><div class="l">${t.big}″ or longer${nTrophy ? ` · ${nTrophy} over ${t.trophy}″` : ''}</div></div></div>`);
-        block.push(lengthChart(len, t.big));
-      }
-      parts.push(`<div class="sp-block">${block.join('')}</div>`);
+    // ---- one fish: survey years across the top, lengths below ----
+    if (picked) {
+      const { t, list } = picked;
+      const cur = list.find(x => x.date === S.surveyPick) || list[0];
+      const dupYears = new Set(list.map(x => x.year).filter((y, i, arr) => arr.indexOf(y) !== i));
+      const label = x => (dupYears.has(x.year) ? `${svDate(x.date).toLocaleDateString('en-US', { month: 'short' })} ${x.year}` : x.year);
+      const chips = list.map(x => `<button class="chip sel ${x === cur ? 'on' : ''}" data-action="survey-year" data-date="${esc(x.date)}">${label(x)}</button>`).join('');
+      const counts = new Map(cur.len.fishCount.map(([inch, n]) => [Number(inch), Number(n)]));
+      const common = [...counts.entries()].sort((p, q) => q[1] - p[1] || q[0] - p[0])[0];
+      const nBig = [...counts.entries()].reduce((a2, [inch, n]) => a2 + (inch >= t.big ? n : 0), 0);
+      const i = list.indexOf(cur);
+      return `<div class="sv-head"><button class="btn small ghost" data-action="survey-back">${ICON.back} All fish</button></div>
+        <div class="sp-head sv-title">${speciesIcon(t.key, 'lg')}<div><h2>${esc(t.name)}</h2><div class="muted small">Tap a year to see what the DNR caught and measured</div></div></div>
+        <div class="chips scroll sv-years">${chips}</div>
+        <div class="sp-block">
+          <div class="sv-when"><button class="icon-btn mini" data-action="survey-year" data-date="${esc((list[i - 1] || cur).date)}" ${list[i - 1] ? '' : 'disabled'} title="Newer survey">${ICON.back}</button><div class="grow"><b>${svDate(cur.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</b><div class="muted small">${esc(cur.type)}</div></div><button class="icon-btn mini fwd" data-action="survey-year" data-date="${esc((list[i + 1] || cur).date)}" ${list[i + 1] ? '' : 'disabled'} title="Older survey">${ICON.back}</button></div>
+          <div class="stats three"><div class="stat"><div class="v">${U.num(cur.n)}</div><div class="l">fish measured</div></div><div class="stat"><div class="v">${cur.max}<small>in</small></div><div class="l">longest</div></div><div class="stat"><div class="v">${common[0]}<small>in</small></div><div class="l">most common</div></div></div>
+          ${lengthRows(cur.len, t.big)}
+          <div class="len-key"><i></i> ${t.big}″ or longer${nBig ? ` · ${U.num(nBig)} fish` : ' · none this survey'}</div>
+        </div>
+        <p class="muted small">Each row is one inch of length (a 14″ row is fish from 14.0″ to 14.9″). These are the fish Minnesota DNR crews netted and measured during that survey, so it is a sample of what lives in the lake, not a full count.</p>`;
     }
-    parts.push(`<p class="muted small">“Per net” is catch per unit effort for that gear. “Normal” is the statewide 25th–75th percentile for lakes of this class; ▲ above, ▼ below. Highlighted bars are ${TARGETS.map(t => `${t.name.toLowerCase()} ${t.big}″+`).join(', ')}.</p>`);
-    if (sv.narrative) parts.push(`<details class="narr"><summary>Status of the fishery (DNR write-up)</summary><div class="prose">${sanitize(sv.narrative)}</div></details>`);
-    return parts.join('');
-  }
 
-  function rangeFlag(cpue, normal) {
-    const m = String(normal || '').match(/([\d.]+)\s*-\s*([\d.]+)/);
-    if (!m) return '';
-    const lo = parseFloat(m[1]), hi = parseFloat(m[2]);
-    if (cpue > hi) return '<span class="up" title="above normal range">▲</span>';
-    if (cpue < lo) return '<span class="down" title="below normal range">▼</span>';
-    return '';
+    // ---- all fish: one card each ----
+    const cards = all.map(({ t, list }) => {
+      if (!list.length) {
+        const netted = D.surveys.some(sv => sv.catches.some(c => t.codes.includes(c.species)));
+        return `<div class="sv-card none">${speciesIcon(t.key, 'lg')}<div class="grow"><div class="t">${esc(t.name)}</div><div class="s">${netted ? 'Caught in surveys, but no lengths were recorded' : 'Not found in the DNR surveys of this lake'}</div></div></div>`;
+      }
+      const latest = list[0], years = [...new Set(list.map(x => x.year))];
+      return `<button class="sv-card" data-action="survey-species" data-code="${t.key}">${speciesIcon(t.key, 'lg')}<div class="grow"><div class="t">${esc(t.name)}</div><div class="s">${latest.year}: <b>${U.num(latest.n)}</b> measured, ${latest.min}″ to <b>${latest.max}″</b></div><div class="s">${years.length} survey year${years.length === 1 ? '' : 's'}${years.length > 1 ? ` · ${years[years.length - 1]}–${years[0]}` : ''}</div></div><div class="chev">›</div></button>`;
+    }).join('');
+    const withText = D.surveys.find(sv => sv.narrative);
+    return `<h2>Fish lengths from DNR surveys</h2><p class="muted small sv-intro">Pick a fish to see how many were caught at each length, survey by survey.</p>
+      <div class="sv-list">${cards}</div>
+      ${withText ? `<details class="narr"><summary>What the DNR says about this lake (${esc(String(withText.date).slice(0, 4))})</summary><div class="prose">${sanitize(withText.narrative)}</div></details>` : ''}`;
   }
 
   function sanitize(html) {
@@ -340,23 +318,6 @@ FN.ui = (() => {
     doc.querySelectorAll('script,style,iframe,object,embed,link,img').forEach(n => n.remove());
     doc.querySelectorAll('*').forEach(n => { for (const a of [...n.attributes]) if (/^on/i.test(a.name) || a.name === 'style') n.removeAttribute(a.name); });
     return doc.body.innerHTML;
-  }
-
-  function lengthChart(len, bigFrom) {
-    const counts = new Map(len.fishCount.map(([inch, n]) => [Number(inch), Number(n)]));
-    const min = Number(len.minimum_length), max = Number(len.maximum_length);
-    const bars = [];
-    for (let i = min; i <= max; i++) bars.push({ inch: i, n: counts.get(i) || 0 });
-    const W = 560, H = 160, padL = 28, padB = 26, padT = 10;
-    const maxN = Math.max(1, ...bars.map(b => b.n));
-    const bw = (W - padL - 8) / bars.length;
-    const total = bars.reduce((a, b) => a + b.n, 0);
-    const svg = bars.map((b, i) => {
-      const h = (H - padB - padT) * b.n / maxN;
-      const x = padL + i * bw, y = H - padB - h;
-      return `<g class="bar ${bigFrom != null && b.inch >= bigFrom ? 'big' : ''}"><title>${b.inch}″: ${b.n} fish</title><rect x="${(x + 1).toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(1, bw - 2).toFixed(1)}" height="${h.toFixed(1)}" rx="2"/>${bars.length <= 30 || i % 2 === 0 ? `<text x="${(x + bw / 2).toFixed(1)}" y="${H - 8}" text-anchor="middle">${b.inch}</text>` : ''}</g>`;
-    }).join('');
-    return `<div class="chart"><svg viewBox="0 0 ${W} ${H}" class="len-chart" role="img" aria-label="Length distribution"><line x1="${padL}" y1="${H - padB}" x2="${W - 8}" y2="${H - padB}" class="axis"/><text x="${padL - 4}" y="${padT + 8}" text-anchor="end" class="axis-l">${maxN}</text><text x="${padL - 4}" y="${H - padB}" text-anchor="end" class="axis-l">0</text>${svg}</svg><div class="muted small">${total} fish measured · ${min}–${max} in</div></div>`;
   }
 
   /* ---------------- QUICK BITE FORECAST (map tool button) ---------------- */
