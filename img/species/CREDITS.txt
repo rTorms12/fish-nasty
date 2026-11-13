@@ -3,4 +3,6 @@ Species artwork (public domain, U.S. government works):
 - northern-pike.jpg  Northern pike (Esox lucius), drawing by Timothy Knepp, U.S. Fish & Wildlife Service National Image Library. Via Wikimedia Commons "Esox lucius1.jpg".
 - crappie.jpg        Black crappie (Pomoxis nigromaculatus), NOAA Great Lakes Environmental Research Laboratory. Via Wikimedia Commons "Pomoxis nigromaculatus.jpg".
 - largemouth-bass.jpg  Largemouth bass (Micropterus salmoides), illustration by Duane Raver, commissioned by the U.S. Fish & Wildlife Service. Via Wikimedia Commons "Micropterus salmoides.jpg".
-Resized for the app; no other changes.
+- smallmouth-bass.jpg  Smallmouth bass (Micropterus dolomieu), illustration by Duane Raver, U.S. Fish & Wildlife Service. Via Wikimedia Commons "Smallmouth bass.jpg".
+- muskie.jpg           Muskellunge (Esox masquinongy), illustration by Timothy Knepp, U.S. Fish & Wildlife Service. Via Wikimedia Commons "Muskellunge USFWS.jpg".
+Resized (smallmouth also cropped) for the app; no other changes.

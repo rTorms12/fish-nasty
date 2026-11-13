@@ -23,7 +23,7 @@ FN.ui = (() => {
 
   const ratingBadge = r => `<span class="badge ${r.cls}">${r.word}</span>`;
   // Realistic species artwork (img/species/*.jpg) with the emoji as a fallback until the image loads
-  const SPECIES_IMG = { WAE: 'walleye', SAR: 'walleye', WAS: 'walleye', NOP: 'northern-pike', SIP: 'northern-pike', BLC: 'crappie', WHC: 'crappie', CRP: 'crappie', HCR: 'crappie', LMB: 'largemouth-bass' };
+  const SPECIES_IMG = { WAE: 'walleye', SAR: 'walleye', WAS: 'walleye', NOP: 'northern-pike', SIP: 'northern-pike', BLC: 'crappie', WHC: 'crappie', CRP: 'crappie', HCR: 'crappie', LMB: 'largemouth-bass', SMB: 'smallmouth-bass', MUE: 'muskie' };
   const speciesIcon = (code, size = 'sm') => {
     const p = FN.profileFor(code);
     const emoji = p ? p.icon : '';
@@ -227,7 +227,10 @@ FN.ui = (() => {
     { key: 'WAE', name: 'Walleye', codes: ['WAE'], big: 20, trophy: 25, gear: ['Standard gill nets', 'Standard gill net sets'] },
     { key: 'NOP', name: 'Northern pike', codes: ['NOP', 'SIP'], big: 30, trophy: 36, gear: ['Standard gill nets', 'Standard gill net sets'] },
     { key: 'BLC', name: 'Crappie', codes: ['BLC', 'WHC', 'CRP', 'HCR'], big: 11, trophy: 13, gear: ['Standard trap nets', 'Standard trap net sets', 'Standard gill nets'] },
-    { key: 'LMB', name: 'Largemouth bass', codes: ['LMB'], big: 15, trophy: 18, gear: ['Standard electrofishing', 'Standard trap nets', 'Standard trap net sets', 'Standard gill nets'], trendGear: ['Standard electrofishing'], unit: 'Per hour' }
+    { key: 'LMB', name: 'Largemouth bass', codes: ['LMB'], big: 15, trophy: 18, gear: ['Standard electrofishing', 'Standard trap nets', 'Standard trap net sets', 'Standard gill nets'], trendGear: ['Standard electrofishing'], unit: 'Per hour' },
+    // Shown on the Survey tab only where the DNR actually found them
+    { key: 'SMB', name: 'Smallmouth bass', codes: ['SMB'], big: 16, trophy: 20, gear: ['Standard electrofishing'], optional: true },
+    { key: 'MUE', name: 'Muskie', codes: ['MUE'], big: 40, trophy: 50, gear: ['Standard gill nets'], optional: true }
   ];
   const gearShort = g => String(g || '').replace('Standard ', '').replace(' sets', '').replace('gill nets', 'gill net').replace('trap nets', 'trap net').replace('electrofishing', 'electrofishing (per hour)');
   function mergeLengths(lengths, codes) {
@@ -302,10 +305,11 @@ FN.ui = (() => {
     const cards = all.map(({ t, list }) => {
       if (!list.length) {
         const netted = D.surveys.some(sv => sv.catches.some(c => t.codes.includes(c.species)));
+        if (t.optional && !netted) return '';
         return `<div class="sv-card none">${speciesIcon(t.key, 'lg')}<div class="grow"><div class="t">${esc(t.name)}</div><div class="s">${netted ? 'Caught in surveys, but no lengths were recorded' : 'Not found in the DNR surveys of this lake'}</div></div></div>`;
       }
       const latest = list[0], years = [...new Set(list.map(x => x.year))];
-      return `<button class="sv-card" data-action="survey-species" data-code="${t.key}">${speciesIcon(t.key, 'lg')}<div class="grow"><div class="t">${esc(t.name)}</div><div class="s">${latest.year}: <b>${U.num(latest.n)}</b> measured, ${latest.min}″ to <b>${latest.max}″</b></div><div class="s">${years.length} survey year${years.length === 1 ? '' : 's'}${years.length > 1 ? ` · ${years[years.length - 1]}–${years[0]}` : ''}</div></div><div class="chev">›</div></button>`;
+      return `<button class="sv-card" data-action="survey-species" data-code="${t.key}">${speciesIcon(t.key, 'lg')}<div class="grow"><div class="t">${esc(t.name)}</div><div class="s">${latest.year}: <b>${U.num(latest.n)}</b> measured, ${latest.min === latest.max ? '' : latest.min + '″ to '}<b>${latest.max}″</b></div><div class="s">${years.length} survey year${years.length === 1 ? '' : 's'}${years.length > 1 ? ` · ${years[years.length - 1]}–${years[0]}` : ''}</div></div><div class="chev">›</div></button>`;
     }).join('');
     const withText = D.surveys.find(sv => sv.narrative);
     return `<h2>Fish lengths from DNR surveys</h2><p class="muted small sv-intro">Pick a fish to see how many were caught at each length, survey by survey.</p>

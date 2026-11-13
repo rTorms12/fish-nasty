@@ -1,12 +1,12 @@
 /* Fish Nasty — service worker: offline app shell + cached data */
-const VERSION = 'fn-v1.15.0';
+const VERSION = 'fn-v1.16.0';
 const V = VERSION.replace('fn-v', '');
 const ver = u => `${u}?v=${V}`;           // index.html asks for these with the version on the end; cache them under that exact address
 const SHELL = [
   './', './index.html', './manifest.webmanifest', ver('./css/app.css'),
   ...['config', 'species', 'dnr', 'weather', 'solunar', 'forecast', 'map', 'ui', 'views', 'cloud', 'app'].map(n => ver(`./js/${n}.js`)),
   './icons/icon-192.png', './icons/apple-touch-icon.png', './icons/favicon-64.png',
-  './img/species/walleye-sm.jpg', './img/species/northern-pike-sm.jpg', './img/species/crappie-sm.jpg', './img/species/largemouth-bass-sm.jpg',
+  './img/species/walleye-sm.jpg', './img/species/northern-pike-sm.jpg', './img/species/crappie-sm.jpg', './img/species/largemouth-bass-sm.jpg', './img/species/smallmouth-bass-sm.jpg', './img/species/muskie-sm.jpg',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.9.0/suncalc.min.js',

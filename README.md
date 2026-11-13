@@ -4,7 +4,7 @@ A browser-based, add-to-home-screen fishing app for Minnesota lakes. Think onX F
 
 - **Depth maps** — Minnesota DNR lake bathymetry rendered live as color-coded contour lines (0–5 ft through 100+ ft), shaded depth fill, depth labels, and a depth-range highlighter. Tap anywhere on a mapped lake to read the depth at that spot.
 - **Fish species** — the species list from DNR fisheries surveys, with game fish highlighted and a "stocked" badge.
-- **DNR surveys** — the Survey tab lists walleye, northern pike, crappie and largemouth bass; tap a fish, pick a survey year (chips or the older/newer arrows) and see how many fish were measured at each inch of length, plus the number measured, the longest and the most common length. The DNR's "Status of the fishery" write-up is one tap away.
+- **DNR surveys** — the Survey tab lists walleye, northern pike, crappie and largemouth bass, plus smallmouth bass and muskie on lakes where the DNR found them; tap a fish, pick a survey year (chips or the older/newer arrows) and see how many fish were measured at each inch of length, plus the number measured, the longest and the most common length. The DNR's "Status of the fishery" write-up is one tap away.
 - **Top 20 lakes** — every surveyed lake in Minnesota (about 3,800) ranked for the biggest and the most walleye, pike, crappie and largemouth bass, built from the DNR survey length and catch data. Trophy button in the top bar.
 - **Stocking records** — year-by-year stocking table (species, size, number, pounds) with DNR footnotes.
 - **Public accesses** — boat ramps and carry-ins from the DNR access inventory, mapped, with directions.
