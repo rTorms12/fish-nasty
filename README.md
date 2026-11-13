@@ -162,6 +162,10 @@ icons/                app icons
 - The bottom sheet moves by `transform` only while a finger is down; its layout-affecting offset is written once on release.
 - Typed form values (catch form, pin editor, sign-in) are carried across background re-renders, so a sync finishing or the phone waking up never clears a half-filled form.
 
+## Lake labels
+
+Each lake with a DNR page gets one chip on the map: a solid fish icon and the name in a dark see-through pill, and the whole chip is the tap target. The selected lake's chip turns bright blue and is always drawn, even zoomed out or with lake names switched off, so there is no separate selection marker. Lakes without a DNR page show a plain name. The depth shading is deepened with a CSS filter on its tile layer (`.fn-relief`).
+
 ## Navigation and the Back button
 
 Every screen change adds one browser-history entry (with a small snapshot of that screen), so the phone's Back button, an edge swipe, and the browser's back/forward buttons retrace your path: weather → lake → home, catch log → profile → home. In-app back arrows step back through the same history rather than stacking new entries, and Back leaves the app only from the first screen. Lakes, the lake finder and the profile keep their own addresses (`#lake/<DOW>`, `#top`, `#profile`) so a reload or a shared link lands on the same screen. Map tools (layers, pin menu, popups) never reopen a panel that was closed with the X.

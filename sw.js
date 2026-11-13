@@ -1,5 +1,5 @@
 /* Fish Nasty — service worker: offline app shell + cached data */
-const VERSION = 'fn-v1.14.0';
+const VERSION = 'fn-v1.15.0';
 const V = VERSION.replace('fn-v', '');
 const ver = u => `${u}?v=${V}`;           // index.html asks for these with the version on the end; cache them under that exact address
 const SHELL = [

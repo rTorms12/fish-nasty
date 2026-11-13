@@ -3,7 +3,7 @@ window.FN = window.FN || {};
 
 FN.map = (() => {
   const C = FN.config, U = FN.util;
-  let map, lakeMarker, accessGroup, locateGroup, pinsGroup;
+  let map, accessGroup, locateGroup, pinsGroup;
   const base = {}, overlays = {};
   const pinMarkers = new Map();
   const DEFAULTS = { basemap: 'sat', relief: true, contours: true, labels: true, names: true, opacity: 0.9, depthMin: 0, depthMax: 999, radar: false, radarLoop: true };
@@ -145,7 +145,7 @@ FN.map = (() => {
     base.street = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' });
     base.dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19, subdomains: 'abcd', attribution: '© OpenStreetMap, © CARTO' });
 
-    overlays.relief = new DynamicLayer(C.gis.relief, { op: 'exportImage', minZoom: 9, opacity: settings.opacity, renderScale: 1, format: 'png8', params: { noData: '255', noDataInterpretation: 'esriNoDataMatchAll' }, attribution: 'Depth data © MN DNR' });
+    overlays.relief = new DynamicLayer(C.gis.relief, { className: 'fn-relief', op: 'exportImage', minZoom: 9, opacity: settings.opacity, renderScale: 1, format: 'png8', params: { noData: '255', noDataInterpretation: 'esriNoDataMatchAll' }, attribution: 'Depth data © MN DNR' });
     overlays.contours = new DynamicLayer(C.gis.bathy, { minZoom: C.map.contourMinZoom, opacity: 1, renderScale: 1.5, params: z => ({ dynamicLayers: contourLayers(z) }) });
     overlays.outlines = new DynamicLayer(C.gis.bathy, {
       minZoom: 8, maxZoom: C.map.contourMinZoom - 1, renderScale: 1, format: 'png8',
@@ -229,7 +229,7 @@ FN.map = (() => {
   const labelCache = new Map();            // lake id -> { dow, name, acres, lat, lon }
   let labelFetched = null, labelTimer = null, labelReq = 0;
   const labelMinAcres = z => (z >= 15 ? 2 : z >= 14 ? 5 : z >= 13 ? 12 : z >= 12 ? 40 : 120);
-  let currentDow = null;
+  let currentDow = null, currentLake = null;
   // UTM zone 15N (the DNR's native projection) -> WGS84, for the per-lake center points the layer carries
   function utmToLatLng(x, y, zone = 15) {
     const a = 6378137, e2 = 0.00669438, k0 = 0.9996, ep2 = e2 / (1 - e2);
@@ -248,7 +248,7 @@ FN.map = (() => {
   function scheduleLabels() { clearTimeout(labelTimer); labelTimer = setTimeout(updateLabels, 180); }
   async function updateLabels() {
     const z = map.getZoom();
-    if (z < C.map.nameMinZoom || !settings.names) { labelGroup.clearLayers(); return; }
+    if (z < C.map.nameMinZoom || !settings.names) { renderLabels(); return; }   // only the selected lake's chip
     const view = map.getBounds(), minAcres = labelMinAcres(z);
     if (labelFetched && labelFetched.bounds.contains(view) && labelFetched.minAcres <= minAcres) { renderLabels(); return; }
     const b = view.pad(0.7);
@@ -270,26 +270,34 @@ FN.map = (() => {
     } catch (e) { /* offline or server hiccup: keep whatever names we already have */ }
     renderLabels();
   }
+  const FISH = '<svg viewBox="0 0 24 24"><path fill="currentColor" fill-rule="evenodd" d="M1.5 6.8l4.9 4.1C8.5 8 11.5 6.3 14.8 6.3c3.3 0 6 2 7.7 5.700-1.700 3.700-4.400 5.700-7.700 5.700-3.300 0-6.300-1.700-8.400-4.600l-4.900 4.100c.9-1.8 1.400-3.500 1.400-5.200S2.400 8.600 1.500 6.800zM17.300 10.100a1.150 1.150 0 1 0 0 2.300 1.150 1.150 0 0 0 0-2.300z"/></svg>';
   function renderLabels() {
     labelGroup.clearLayers();
     const z = map.getZoom();
-    if (z < C.map.nameMinZoom || !settings.names) return;
+    const showAll = z >= C.map.nameMinZoom && settings.names;
+    if (!showAll && !currentLake) return;
     const view = map.getBounds().pad(0.15), minA = labelMinAcres(z);
     const size = z >= 14 ? 'lg' : z >= 12 ? 'md' : 'sm';
-    const pxW = size === 'lg' ? 9.5 : size === 'md' ? 8 : 7, pxH = size === 'lg' ? 64 : size === 'md' ? 56 : 48;
-    // Biggest lakes first; skip a name whose box would overlap one already placed
+    const pxW = size === 'lg' ? 9 : size === 'md' ? 8 : 7.4, pxH = 38;
+    const sameLake = l => currentDow && l.dow && U.dowPrefix(l.dow) === U.dowPrefix(currentDow);
+    // The selected lake always gets its chip (even zoomed out or with names switched off) and is placed first so nothing crowds it out
+    const cands = [];
+    if (currentLake && currentLake.lat != null) {
+      const hit = [...labelCache.values()].find(sameLake);
+      cands.push({ dow: currentLake.id, name: currentLake.name, lat: hit ? hit.lat : currentLake.lat, lon: hit ? hit.lon : currentLake.lon, current: true });
+    }
+    if (showAll) cands.push(...[...labelCache.values()].filter(l => l.acres >= minA && view.contains([l.lat, l.lon]) && !/^unnamed/i.test(l.name) && !sameLake(l)).sort((a, b) => b.acres - a.acres));
+    // Biggest lakes first; skip a name whose chip would overlap one already placed
     const placed = [];
-    const cands = [...labelCache.values()].filter(l => l.acres >= minA && view.contains([l.lat, l.lon]) && !/^unnamed/i.test(l.name)).sort((a, b) => b.acres - a.acres);
     for (const l of cands) {
       const p = map.latLngToLayerPoint([l.lat, l.lon]);
-      const w = Math.min(132, l.name.length * pxW + 20);
-      if (placed.some(q => Math.abs(q.x - p.x) < (q.w + w) / 2 && Math.abs(q.y - p.y) < pxH)) continue;
+      const w = Math.min(200, l.name.length * pxW + (l.dow ? 48 : 16));
+      if (!l.current && placed.some(q => Math.abs(q.x - p.x) < (q.w + w) / 2 && Math.abs(q.y - p.y) < pxH)) continue;
       placed.push({ x: p.x, y: p.y, w });
-      const isCurrent = currentDow && l.dow && U.dowPrefix(l.dow) === U.dowPrefix(currentDow);
-      const badge = l.dow ? `<i class="bd"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M3 12s4-6 10-6c4 0 8 6 8 6s-4 6-8 6c-6 0-10-6-10-6z"/><path d="M3 12l-1-4M3 12l-1 4"/><circle cx="15.5" cy="11" r="1" fill="currentColor"/></svg></i>` : '';
+      const badge = l.dow ? `<i class="bd">${FISH}</i>` : '';
       const m = L.marker([l.lat, l.lon], {
-        icon: L.divIcon({ className: `lake-label ${size}${isCurrent ? ' current' : ''}${l.dow ? '' : ' nobadge'}`, html: `<div class="ll">${badge}<span>${U.esc(l.name)}</span></div>`, iconSize: [0, 0], iconAnchor: [0, 0] }),
-        interactive: !!l.dow, keyboard: false, zIndexOffset: -200, title: l.dow ? `${l.name} — tap for lake info` : l.name
+        icon: L.divIcon({ className: `lake-label ${size}${l.current ? ' current' : ''}${l.dow ? '' : ' nobadge'}`, html: `<div class="ll">${badge}<span>${U.esc(l.name)}</span></div>`, iconSize: [0, 0], iconAnchor: [0, 0] }),
+        interactive: !!l.dow, keyboard: false, zIndexOffset: l.current ? 300 : -200, title: l.dow ? `${l.name} — tap for lake info` : l.name
       });
       if (l.dow) m.on('click', () => { for (const fn of listeners.label) fn(l); });
       labelGroup.addLayer(m);
@@ -298,14 +306,9 @@ FN.map = (() => {
 
   let fitCount = 0;
   function showLake(lake, { fit = true } = {}) {
-    currentDow = lake ? lake.id : null;
-    if (lakeMarker) { map.removeLayer(lakeMarker); lakeMarker = null; }
+    currentDow = lake ? lake.id : null; currentLake = lake || null;   // the selected lake is marked by its own bright chip
     if (labelGroup) renderLabels();
     if (!lake || lake.lat == null) return;
-    lakeMarker = L.marker([lake.lat, lake.lon], {
-      icon: L.divIcon({ className: 'lake-pin', html: '<div class="pin"><span>🎣</span></div>', iconSize: [34, 42], iconAnchor: [17, 42] }),
-      interactive: false
-    }).addTo(map);
     if (fit) {
       // On phones the bottom sheet covers part of the map: keep the lake in the visible part
       const bottomPad = sheetCover();

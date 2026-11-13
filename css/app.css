@@ -256,8 +256,6 @@ select { font: inherit; background: var(--panel-2); color: var(--text); border: 
 .lake-label { background: none; border: 0; }
 
 /* map markers */
-.lake-pin .pin { width: 34px; height: 34px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); background: var(--accent); border: 3px solid #fff; box-shadow: 0 4px 10px rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; }
-.lake-pin .pin span { transform: rotate(45deg); font-size: 16px; }
 .ramp-pin .ramp { width: 26px; height: 26px; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; font-size: 15px; box-shadow: 0 2px 8px rgba(0,0,0,.45); border: 2px solid var(--accent-2); }
 .depth-popup .pd { font-size: 24px; font-weight: 800; }
 .depth-popup .pl { color: var(--muted); font-size: 13px; margin-bottom: 6px; }
@@ -523,17 +521,22 @@ button.sv-card:active { transform: scale(.985); background: var(--panel-3); }
 .dayscore b { font-size: 15px; } .dayscore b.r1 { color: #b7c8d6; } .dayscore b.r2 { color: #63d2b3; } .dayscore b.r3 { color: var(--r3); } .dayscore b.r4 { color: var(--r4); }
 
 /* ---------- lake name labels, onX-style: badge + name ---------- */
-.lake-label .ll { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); width: 132px; display: flex; flex-direction: column; align-items: center; pointer-events: none; }
-.lake-label .ll .bd { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(160deg, #3b7bff, #1a3fd8); border: 2.5px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; pointer-events: auto; cursor: pointer; }
-.lake-label .ll .bd svg { width: 16px; height: 16px; color: #fff; }
-.lake-label .ll span { margin-top: 3px; text-align: center; font-weight: 800; font-size: 14px; line-height: 1.12; color: #fff; text-shadow: 0 0 2px #04141f, 0 0 5px #04141f, 0 1px 3px #000, 0 0 10px rgba(4,20,31,.9); pointer-events: auto; cursor: pointer; }
-.lake-label.sm .ll .bd { width: 22px; height: 22px; } .lake-label.sm .ll .bd svg { width: 12px; height: 12px; } .lake-label.sm .ll span { font-size: 12px; }
-.lake-label.lg .ll .bd { width: 34px; height: 34px; } .lake-label.lg .ll .bd svg { width: 20px; height: 20px; } .lake-label.lg .ll span { font-size: 17px; }
-.lake-label.current .ll .bd { background: linear-gradient(160deg, #7fe3ff, #1aa8e8); }
-.lake-label.current .ll span { background: rgba(88,209,255,.92); color: #04141f; text-shadow: none; padding: 1px 9px; border-radius: 999px; }
-.lake-label.nobadge .ll span { margin-top: 0; }
-.leaflet-container.basemap-light .lake-label .ll span { color: #1a4fc4; text-shadow: 0 0 2px #fff, 0 0 4px #fff, 0 0 8px #fff, 0 1px 2px #fff; }
-.leaflet-container.basemap-light .lake-label.current .ll span { color: #04141f; text-shadow: none; }
+.lake-label .ll { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); width: max-content; max-width: 210px; display: flex; align-items: center; gap: 7px; padding: 4px 11px 4px 4px; background: rgba(9,22,35,.78); border: 1px solid rgba(255,255,255,.16); border-radius: 999px; box-shadow: 0 3px 10px rgba(0,0,0,.4); cursor: pointer; pointer-events: auto; }
+.lake-label .ll .bd { width: 22px; height: 22px; border-radius: 50%; background: linear-gradient(160deg, #58d1ff, #2f7df6); display: flex; align-items: center; justify-content: center; flex: none; }
+.lake-label .ll .bd svg { width: 14px; height: 14px; color: #04141f; display: block; }
+.lake-label .ll span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 700; font-size: 13.5px; line-height: 1.2; color: #eef6fc; }
+.lake-label.sm .ll span { font-size: 12.5px; } .lake-label.lg .ll span { font-size: 15px; }
+.lake-label.sm .ll { padding: 3px 9px 3px 3px; gap: 6px; } .lake-label.sm .ll .bd { width: 20px; height: 20px; } .lake-label.sm .ll .bd svg { width: 13px; height: 13px; }
+/* the selected lake */
+.lake-label.current .ll { background: #58d1ff; border-color: #fff; box-shadow: 0 0 0 4px rgba(88,209,255,.25), 0 3px 10px rgba(0,0,0,.45); }
+.lake-label.current .ll .bd { background: #04141f; } .lake-label.current .ll .bd svg { color: #58d1ff; }
+.lake-label.current .ll span { color: #04141f; }
+/* lakes with no DNR page: a plain name, not a button */
+.lake-label.nobadge .ll { background: none; border: 0; box-shadow: none; padding: 0; cursor: default; pointer-events: none; }
+.lake-label.nobadge .ll span { font-weight: 600; font-size: 12px; color: #dcebf5; text-shadow: 0 1px 2px rgba(0,0,0,.95), 0 0 6px rgba(0,0,0,.7); }
+.leaflet-container.basemap-light .lake-label.nobadge .ll span { color: #1a4fc4; text-shadow: 0 0 2px #fff, 0 0 4px #fff, 0 0 8px #fff; }
+/* deeper, richer water under the contour lines */
+.fn-relief { filter: saturate(1.15) brightness(.9) contrast(1.08); }
 
 /* ---------- interaction polish ---------- */
 /* Hover highlights only where there is a real pointer; on phones a hover style sticks after the tap */
@@ -543,7 +546,7 @@ button.sv-card:active { transform: scale(.985); background: var(--panel-3); }
   .sheet-close:hover { background: rgba(255,255,255,.16); color: var(--text); }
   button.sv-card:hover { background: var(--panel-3); }
   .bite-chart .bar:hover .b { stroke: #fff; stroke-width: 1.5; }
-  .lake-label .ll span:hover { color: #9fe8ff; }
+  .lake-label:not(.current):not(.nobadge) .ll:hover { background: rgba(20,44,66,.92); border-color: rgba(88,209,255,.6); }
   .btn:hover { filter: brightness(1.08); }
   .tab:hover, .seg button:hover { color: var(--text); }
 }
